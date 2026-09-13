@@ -1,0 +1,239 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand — deep forest green (primary, used sparingly on large areas) */
+  --color-forest-50:  #f0f7f3;
+  --color-forest-100: #dbeee2;
+  --color-forest-200: #b9ddc9;
+  --color-forest-300: #8bc4a7;
+  --color-forest-400: #57a481;
+  --color-forest-500: #358765;
+  --color-forest-600: #246c50;
+  --color-forest-700: #1d5641;
+  --color-forest-800: #1a4535;
+  --color-forest-900: #16392d;
+  --color-forest-950: #0a1f19;
+
+  /* Emerald — the brighter, livelier green for highlights and states */
+  --color-emerald-50:  #eafaf3;
+  --color-emerald-100: #cdf3e2;
+  --color-emerald-200: #9ee7c8;
+  --color-emerald-300: #5fd3a3;
+  --color-emerald-400: #2bb884;
+  --color-emerald-500: #129c6c;
+  --color-emerald-600: #0f7d58;
+  --color-emerald-700: #0c6448;
+  --color-emerald-800: #0b503b;
+  --color-emerald-900: #094232;
+  --color-emerald-950: #04241c;
+
+  /* Champagne — restrained metallic accent */
+  --color-brass-50:  #fbf8ef;
+  --color-brass-100: #f4edd6;
+  --color-brass-200: #e8d9ac;
+  --color-brass-300: #d9be79;
+  --color-brass-400: #cca253;
+  --color-brass-500: #b07e34;
+  --color-brass-600: #8a5a24;
+  --color-brass-700: #7d5220;
+  --color-brass-800: #6f4a1f;
+  --color-brass-900: #5e3926;
+
+  /* Warm neutrals — ivory, off-white, beige, charcoal.
+     These carry most of the interface; green stays an accent. */
+  --color-sand-50:  #fdfcf9;  /* warm ivory   */
+  --color-sand-100: #f7f5f0;  /* off white    */
+  --color-sand-200: #f2eee6;  /* soft beige   */
+  --color-sand-300: #e7e1d5;
+  --color-sand-400: #d5cdbd;
+  --color-sand-500: #b3aa98;
+  --color-sand-600: #8a8275;
+  --color-sand-700: #5c645e;
+  --color-sand-800: #3a403c;
+  --color-sand-900: #1f2421;  /* charcoal     */
+  --color-sand-950: #121714;
+
+  --font-display: "Cormorant Garamond", ui-serif, Georgia, serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+
+  --ease-luxe: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Semantic tokens — light.
+   Surfaces are warm ivory/beige and text is charcoal, so green reads as an
+   accent rather than a tint over the whole interface. Every pairing below
+   clears WCAG AA (4.5:1); see the contrast notes in README. */
+:root {
+  --bg: #fdfcf9;          /* warm ivory  */
+  --bg-subtle: #f2eee6;   /* soft beige  */
+  --bg-elevated: #ffffff;
+  --fg: #1f2421;          /* charcoal — 15.4:1 on ivory */
+  --fg-muted: #5c645e;    /* 5.9:1 on ivory */
+  --border: #e7e1d5;
+  --ring: var(--color-forest-600);
+}
+
+/* Semantic tokens — dark. Near-neutral charcoal, not a green wash. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121714;
+    --bg-subtle: #1a201c;
+    --bg-elevated: #1f2622;
+    --fg: #eae7e0;        /* warm ivory text — 14.7:1 */
+    --fg-muted: #a2aba5;  /* 7.7:1 */
+    --border: #2c332e;
+    --ring: var(--color-emerald-300);
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121714;
+  --bg-subtle: #1a201c;
+  --bg-elevated: #1f2622;
+  --fg: #eae7e0;
+  --fg-muted: #a2aba5;
+  --border: #2c332e;
+  --ring: var(--color-emerald-300);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-subtle: var(--bg-subtle);
+  --color-bg-elevated: var(--bg-elevated);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-border-base: var(--border);
+}
+
+* { border-color: var(--border); }
+
+html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+
+body {
+  background-color: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+h1, h2, h3, .font-display { font-family: var(--font-display); }
+
+::selection { background: var(--color-forest-700); color: #fff; }
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: var(--bg-subtle); }
+::-webkit-scrollbar-thumb {
+  background: var(--color-sand-500);
+  border-radius: 6px;
+  border: 2px solid var(--bg-subtle);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-forest-600);
+}
+
+/* Utilities */
+.text-balance { text-wrap: balance; }
+.text-pretty { text-wrap: pretty; }
+
+.glass {
+  background: color-mix(in srgb, var(--bg-elevated) 72%, transparent);
+  backdrop-filter: blur(14px) saturate(180%);
+  -webkit-backdrop-filter: blur(14px) saturate(180%);
+}
+
+.gradient-text {
+  background: linear-gradient(120deg, var(--color-brass-300), var(--color-brass-500));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Prevent FOUC on GSAP reveal elements */
+.gsap-reveal { opacity: 0; }
+.no-js .gsap-reveal, .gsap-ready .gsap-reveal { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .gsap-reveal { opacity: 1 !important; transform: none !important; }
+}
+
+@media print {
+  .print-hidden { display: none !important; }
+  body { background: #fff; color: #1f2421; }
+}
+
+/* ── Print: invoices and confirmations ─────────────────────────────────
+   The site chrome is screen furniture. On paper we want the document only,
+   in light ink, flat on the page. */
+@media print {
+  /* Force the light palette so a dark-mode viewer does not print a black
+     sheet, and let backgrounds render at all. */
+  :root,
+  :root[data-theme="dark"] {
+    --bg: #ffffff;
+    --bg-subtle: #ffffff;
+    --bg-elevated: #ffffff;
+    --fg: #111111;
+    --fg-muted: #4a4a4a;
+    --border: #cccccc;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  /* Site chrome and any explicitly screen-only control. */
+  header,
+  footer,
+  nav,
+  .print-hide,
+  [data-sonner-toaster] {
+    display: none !important;
+  }
+
+  .print-page {
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* The document itself: no card styling, no clipping across pages. */
+  .invoice-sheet {
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    max-width: none !important;
+    break-inside: avoid;
+  }
+
+  /* Keep table rows and sections whole rather than split across sheets. */
+  table,
+  section,
+  header,
+  tfoot {
+    break-inside: avoid;
+  }
+
+  a {
+    text-decoration: none !important;
+    color: inherit !important;
+  }
+
+  @page {
+    margin: 16mm;
+  }
+}
