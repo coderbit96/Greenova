@@ -60,6 +60,8 @@ export interface PriceBreakdown {
   nightlyRate: number;
   /** Discount applied to the accommodation subtotal. */
   discountAmount: number;
+  /** Discount from a validated coupon, after any room-rate promotion. */
+  couponDiscountAmount: number;
   roomTotal: number;
   /** One-off charges, applied per stay rather than per night. */
   feesTotal: number;
@@ -79,6 +81,7 @@ export function priceBreakdown(
   room: PricedRoom | number,
   nights: number,
   rooms = 1,
+  couponDiscount = 0,
 ): PriceBreakdown {
   const priced: PricedRoom = typeof room === "number" ? { pricePerNight: room } : room;
   const safeNights = Math.max(0, Math.floor(nights));
@@ -86,7 +89,9 @@ export function priceBreakdown(
 
   const nightlyRate = effectiveRate(priced);
   const roomSubtotal = priced.pricePerNight * safeNights * safeRooms;
-  const roomTotal = nightlyRate * safeNights * safeRooms;
+  const roomRateTotal = nightlyRate * safeNights * safeRooms;
+  const couponDiscountAmount = Math.min(roomRateTotal, Math.max(0, Math.floor(couponDiscount)));
+  const roomTotal = roomRateTotal - couponDiscountAmount;
   const discountAmount = roomSubtotal - roomTotal;
 
   const fees = priced.additionalFees ?? [];
@@ -104,6 +109,7 @@ export function priceBreakdown(
     nightlyRate,
     roomSubtotal,
     discountAmount,
+    couponDiscountAmount,
     roomTotal,
     feesTotal,
     fees,

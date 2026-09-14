@@ -12,11 +12,12 @@ import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import AuthShell from "@/components/auth/AuthShell";
 import GoogleButton from "@/components/auth/GoogleButton";
+import { safeInternalPath } from "@/lib/redirects";
 
 export default function LoginForm() {
   const router = useRouter();
   const params = useSearchParams();
-  const callbackUrl = params.get("callbackUrl") || "/account/bookings";
+  const callbackUrl = safeInternalPath(params.get("callbackUrl"));
   const [submitting, setSubmitting] = useState(false);
 
   const {

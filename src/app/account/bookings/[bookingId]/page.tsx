@@ -4,9 +4,12 @@ import Link from "next/link";
 import { ArrowLeft, Receipt, FileText } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { getBookingById, canAccessBooking } from "@/services/booking.service";
+import { getReviewForBooking } from "@/services/review.service";
 import { formatDate } from "@/utils";
 import BookingSummary from "@/components/booking/BookingSummary";
 import BookingActions from "@/components/account/BookingActions";
+import ReviewForm from "@/components/account/ReviewForm";
+import Badge, { statusTone } from "@/components/ui/Badge";
 
 export const metadata: Metadata = {
   title: "Booking Details",
@@ -34,6 +37,11 @@ export default async function BookingDetailPage({
   if (!canAccessBooking(booking, { id: session.user.id, role: session.user.role })) {
     notFound();
   }
+
+  const reviewEligible = booking.status === "completed" || booking.bookingStatus === "CHECKED_OUT";
+  const existingReview = reviewEligible
+    ? await getReviewForBooking(booking._id, session.user.id)
+    : null;
 
   return (
     <div>
@@ -105,6 +113,27 @@ export default async function BookingDetailPage({
           </div>
         )}
       </section>
+
+      {reviewEligible && (
+        <section className="mt-6 rounded-3xl border border-border-base bg-bg-elevated p-6 sm:p-8">
+          <h2 className="font-display text-2xl font-medium">Share your experience</h2>
+          {existingReview ? (
+            <div className="mt-4">
+              <p className="text-sm text-fg-muted">Your review has been submitted.</p>
+              <Badge className="mt-3" tone={statusTone(existingReview.status)}>
+                {existingReview.status.toLowerCase()}
+              </Badge>
+            </div>
+          ) : (
+            <>
+              <p className="mt-1.5 text-sm text-fg-muted">
+                Your feedback helps future guests. Reviews are published after approval.
+              </p>
+              <ReviewForm bookingId={booking._id} />
+            </>
+          )}
+        </section>
+      )}
 
       <p className="mt-8 text-sm text-fg-muted">
         Need something changed?{" "}

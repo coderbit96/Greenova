@@ -3,6 +3,7 @@ import Image from "next/image";
 import { Clock, Leaf, Wine, Users } from "lucide-react";
 import Reveal, { Stagger, StaggerItem } from "@/components/ui/Reveal";
 import { LinkButton } from "@/components/ui/Button";
+import { listDining } from "@/services/content.service";
 
 export const metadata: Metadata = {
   title: "Dining",
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
     "One menu, rewritten daily around whatever the kitchen garden gives up that morning. Dining at Greenova.",
 };
 
-const venues = [
+const fallbackVenues = [
   {
     name: "The Estate Table",
     hours: "Dinner, 7pm – 10pm",
@@ -60,7 +61,20 @@ const principles = [
   },
 ];
 
-export default function DiningPage() {
+export default async function DiningPage() {
+  const managed = (await listDining(true).catch(() => [])) as unknown as Array<{
+    _id: string; name: string; description: string; openingTime: string; closingTime: string; cuisine: string; images: Array<{ url: string }>; highlights: string[];
+  }>;
+  const venues = managed.length
+    ? managed.map((venue) => ({
+      key: venue._id,
+      name: venue.name,
+      hours: `${venue.openingTime} – ${venue.closingTime}`,
+      body: venue.description,
+      image: venue.images[0]?.url ?? "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?q=80&w=1400&auto=format&fit=crop",
+      note: [venue.cuisine, ...venue.highlights].join(" · "),
+    }))
+    : fallbackVenues.map((venue) => ({ ...venue, key: venue.name }));
   return (
     <div className="pt-28 pb-24 lg:pt-36">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -80,7 +94,7 @@ export default function DiningPage() {
         {/* Venues */}
         <div className="mt-20 space-y-24 lg:space-y-32">
           {venues.map((venue, i) => (
-            <Reveal key={venue.name}>
+            <Reveal key={venue.key}>
               <div
                 className={`grid items-center gap-10 lg:grid-cols-2 lg:gap-16 ${
                   i % 2 === 1 ? "lg:[&>*:first-child]:order-2" : ""

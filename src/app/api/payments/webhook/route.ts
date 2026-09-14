@@ -1,5 +1,6 @@
 import { applyWebhookEvent } from "@/services/payment.service";
 import { verifyWebhookSignature } from "@/lib/razorpay";
+import crypto from "crypto";
 
 /**
  * Razorpay webhook. The safety net for guests who close the tab before the
@@ -21,10 +22,15 @@ export async function POST(req: Request) {
 
   try {
     const event = JSON.parse(raw);
-    const entity = event?.payload?.payment?.entity;
-    if (!entity?.order_id) return Response.json({ received: true });
+    const payment = event?.payload?.payment?.entity;
+    const refund = event?.payload?.refund?.entity;
+    // Razorpay supplies an event id for normal deliveries. A body hash is a
+    // deterministic fallback for test deliveries or proxies that omit it.
+    const eventKey =
+      req.headers.get("x-razorpay-event-id") ??
+      crypto.createHash("sha256").update(raw).digest("hex");
 
-    await applyWebhookEvent(event.event, entity);
+    await applyWebhookEvent(event.event, { payment, refund }, eventKey);
     return Response.json({ received: true });
   } catch (err) {
     console.error("[webhook]", err);

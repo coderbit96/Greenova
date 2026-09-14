@@ -21,7 +21,7 @@ export default function ContactForm() {
     formState: { errors },
   } = useForm<ContactInput>({
     resolver: zodResolver(contactSchema),
-    defaultValues: { name: "", email: "", subject: "", message: "" },
+    defaultValues: { name: "", email: "", phone: "", subject: "", message: "" },
   });
 
   async function onSubmit(values: ContactInput) {
@@ -63,6 +63,7 @@ export default function ContactForm() {
       className="space-y-5 rounded-3xl border border-border-base bg-bg-elevated p-6 sm:p-8"
       noValidate
     >
+      <input tabIndex={-1} autoComplete="off" className="sr-only" aria-hidden="true" {...register("website")} />
       <div className="grid gap-5 sm:grid-cols-2">
         <Input
           label="Your name"
@@ -77,6 +78,7 @@ export default function ContactForm() {
           error={errors.email?.message}
           {...register("email")}
         />
+        <Input label="Phone" type="tel" autoComplete="tel" error={errors.phone?.message} {...register("phone")} />
       </div>
 
       <Input

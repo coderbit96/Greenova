@@ -9,7 +9,7 @@ import SearchWidget from "@/components/booking/SearchWidget";
 
 const easeLuxe = [0.22, 1, 0.36, 1] as const;
 
-export default function Hero() {
+export default function Hero({ title, subtitle }: { title?: string; subtitle?: string }) {
   const imageRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
 
@@ -82,9 +82,7 @@ export default function Hero() {
           transition={{ duration: 0.9, delay: 0.12, ease: easeLuxe }}
           className="font-display text-5xl leading-[1.15] font-light text-balance text-white sm:text-6xl lg:text-8xl"
         >
-          Where the forest
-          <br />
-          <span className="gradient-text inline-block pb-[0.12em] italic">breathes with you</span>
+          {title || <><span>Where the forest</span><br /><span className="gradient-text inline-block pb-[0.12em] italic">breathes with you</span></>}
         </motion.h1>
 
         <motion.p
@@ -93,8 +91,7 @@ export default function Hero() {
           transition={{ duration: 0.9, delay: 0.26, ease: easeLuxe }}
           className="mx-auto mt-7 max-w-xl text-base leading-relaxed text-pretty text-white/80 sm:text-lg"
         >
-          Twenty-four suites suspended in the canopy. A spa fed by mountain springs.
-          A kitchen that harvests at dawn. This is rest, reconsidered.
+          {subtitle || "Twenty-four suites suspended in the canopy. A spa fed by mountain springs. A kitchen that harvests at dawn. This is rest, reconsidered."}
         </motion.p>
       </div>
 

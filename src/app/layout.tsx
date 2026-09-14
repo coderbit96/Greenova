@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 import Providers from "@/components/layout/Providers";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import PageTransition from "@/components/layout/PageTransition";
 import "./globals.css";
 
 const inter = Inter({
@@ -60,7 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       >
         <Providers>
           <Navbar />
-          <main className="flex-1">{children}</main>
+          <PageTransition>{children}</PageTransition>
           <Footer />
           <Toaster
             position="top-center"

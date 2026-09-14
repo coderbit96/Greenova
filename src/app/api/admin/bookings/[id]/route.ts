@@ -4,13 +4,13 @@ import { requireAdmin, errorResponse, HttpError } from "@/lib/guards";
 
 export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   try {
-    await requireAdmin();
+    const session = await requireAdmin();
     const { id } = await ctx.params;
 
     const parsed = updateBookingSchema.safeParse(await req.json());
     if (!parsed.success) throw new HttpError(400, "Invalid update.");
 
-    const booking = await updateBookingAsAdmin(id, parsed.data);
+    const booking = await updateBookingAsAdmin(id, parsed.data, session.user.id);
     return Response.json({ booking });
   } catch (err) {
     return errorResponse(err);

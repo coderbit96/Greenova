@@ -2,6 +2,8 @@
 
 import { z } from "zod";
 import { getUserByEmail } from "@/services/user.service";
+import { allowRateLimited, clientAddress } from "@/lib/rate-limit";
+import { headers } from "next/headers";
 import type { ActionResult } from "./booking.actions";
 
 const requestResetSchema = z.object({
@@ -16,12 +18,20 @@ const requestResetSchema = z.object({
  * enumeration vector.
  *
  * Delivery is not wired up yet: there is no email provider configured, so
- * this logs the request instead of sending. Add Resend/SES/Nodemailer and a
+ * it records nothing instead of sending. Add Resend/SES/Nodemailer and a
  * signed, expiring token in `sendResetEmail` below to finish it.
  */
 export async function requestPasswordResetAction(
   input: unknown,
 ): Promise<ActionResult<{ sent: true }>> {
+  const requestHeaders = await headers();
+  const throttle = allowRateLimited(`auth:reset:${clientAddress(requestHeaders)}`, 5, 15 * 60 * 1_000);
+  if (!throttle.allowed) {
+    // Keep the same response shape so callers cannot use this endpoint to
+    // learn anything about an account.
+    return { ok: true, data: { sent: true } };
+  }
+
   const parsed = requestResetSchema.safeParse(input);
 
   if (!parsed.success) {
@@ -39,12 +49,9 @@ export async function requestPasswordResetAction(
       if (user.provider === "google") {
         // Nothing to reset — they sign in through Google. Still returns the
         // same generic result to the caller.
-        console.log("[reset] google-only account:", parsed.data.email);
       } else {
-        console.log("[reset] would email a reset link to:", parsed.data.email);
       }
     } else {
-      console.log("[reset] no account for:", parsed.data.email);
     }
   } catch (err) {
     // A lookup failure must not reveal itself either; log and carry on.

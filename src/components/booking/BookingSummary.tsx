@@ -16,7 +16,12 @@ const FALLBACK =
  */
 export default function BookingSummary({ booking }: { booking: PopulatedBookingDTO }) {
   const room = booking.room;
-  const paid = booking.payment.status === "paid";
+  // Prefer the independent, canonical lifecycle fields. The lower-case fields
+  // remain as a backwards-compatible projection for existing screens/data.
+  const bookingStatus = booking.bookingStatus ?? booking.status;
+  const paymentStatus = booking.paymentStatus ?? booking.payment.status;
+  const paid = paymentStatus === "PAID" || booking.payment.status === "paid";
+  const bookingIdentifier = booking.bookingId || booking.reference;
 
   // Rate per night per room: dividing the total by nights alone overstates it
   // once more than one room is on the booking.
@@ -28,16 +33,16 @@ export default function BookingSummary({ booking }: { booking: PopulatedBookingD
   return (
     <>
       <div className="rounded-3xl border border-border-base bg-bg-subtle p-6 text-center">
-        <p className="text-xs tracking-widest text-fg-muted uppercase">Booking reference</p>
+        <p className="text-xs tracking-widest text-fg-muted uppercase">Booking ID</p>
         <p className="mt-2 font-display text-3xl font-medium tracking-wide">
-          {booking.reference}
+          {bookingIdentifier}
         </p>
         <div className="mt-4 flex flex-wrap justify-center gap-2">
-          <Badge tone={statusTone(booking.status)}>
-            {booking.status[0].toUpperCase() + booking.status.slice(1)}
+          <Badge tone={statusTone(bookingStatus)}>
+            {formatLifecycleStatus(bookingStatus)}
           </Badge>
-          <Badge tone={statusTone(booking.payment.status)}>
-            Payment: {booking.payment.status}
+          <Badge tone={statusTone(paymentStatus)}>
+            Payment: {formatLifecycleStatus(paymentStatus)}
           </Badge>
         </div>
       </div>
@@ -169,6 +174,12 @@ export default function BookingSummary({ booking }: { booking: PopulatedBookingD
             </dt>
             <dd>{formatCurrency(booking.roomTotal)}</dd>
           </div>
+          {booking.discountAmount > 0 && (
+            <div className="flex justify-between text-forest-700 dark:text-forest-300">
+              <dt>{booking.couponCode ? `Discount (${booking.couponCode})` : "Discount"}</dt>
+              <dd>−{formatCurrency(booking.discountAmount)}</dd>
+            </div>
+          )}
           <div className="flex justify-between">
             <dt className="text-fg-muted">Taxes &amp; fees</dt>
             <dd>{formatCurrency(booking.taxes)}</dd>
@@ -181,6 +192,14 @@ export default function BookingSummary({ booking }: { booking: PopulatedBookingD
       </div>
     </>
   );
+}
+
+function formatLifecycleStatus(status: string) {
+  return status
+    .toLowerCase()
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
 }
 
 function Detail({

@@ -49,9 +49,13 @@ export default async function PaymentStatusPage({
     notFound();
   }
 
-  const paid = booking.payment.status === "paid";
-  const failed = booking.payment.status === "failed";
-  const refunded = booking.payment.status === "refunded";
+  // Payment and booking have deliberately separate lifecycle states. The
+  // canonical payment state decides this screen; the legacy projection keeps
+  // existing records readable during migration.
+  const paid = booking.paymentStatus === "PAID" || booking.payment.status === "paid";
+  const failed = booking.paymentStatus === "FAILED" || booking.payment.status === "failed";
+  const refunded =
+    booking.paymentStatus === "REFUNDED" || booking.payment.status === "refunded";
 
   return (
     <div className="pt-28 pb-24 lg:pt-36">
@@ -144,7 +148,7 @@ export default async function PaymentStatusPage({
               variant="outline"
             >
               <FileText className="size-4" />
-              Invoice
+              View invoice
             </LinkButton>
           )}
         </div>

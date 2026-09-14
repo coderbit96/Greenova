@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { getRoomBySlug, listRelatedRooms } from "@/services/room.service";
 import { getBlockedDates } from "@/services/availability.service";
+import { listApprovedReviews } from "@/services/review.service";
 import {
   formatCurrency,
   effectiveRate,
@@ -27,6 +28,7 @@ import RoomGallery from "@/components/rooms/RoomGallery";
 import RoomCard from "@/components/rooms/RoomCard";
 import Reveal from "@/components/ui/Reveal";
 import Badge from "@/components/ui/Badge";
+import RoomReviews from "@/components/rooms/RoomReviews";
 
 export const dynamic = "force-dynamic";
 
@@ -79,9 +81,10 @@ export default async function RoomDetailPage({
 
   if (!room) notFound();
 
-  const [blockedDates, related] = await Promise.all([
+  const [blockedDates, related, reviews] = await Promise.all([
     getBlockedDates(room._id).catch(() => [] as string[]),
     listRelatedRooms(room.slug, room.category).catch(() => []),
+    listApprovedReviews(room._id).catch(() => []),
   ]);
 
   // The thumbnail leads the gallery when set, then the rest of the images.
@@ -219,6 +222,8 @@ export default async function RoomDetailPage({
                 </ul>
               </Reveal>
             )}
+
+            <RoomReviews reviews={reviews} />
 
             {/* Rates, taxes and fees */}
             <Reveal delay={0.14} className="mt-12">

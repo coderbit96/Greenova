@@ -2,20 +2,22 @@ import type { Metadata } from "next";
 import { MapPin, Phone, Mail, Clock } from "lucide-react";
 import ContactForm from "@/components/contact/ContactForm";
 import Reveal from "@/components/ui/Reveal";
+import { getHotelSettings } from "@/services/settings.service";
 
 export const metadata: Metadata = {
   title: "Contact",
   description: "Reach the Greenova team for reservations, events and enquiries.",
 };
 
-const details = [
-  { Icon: MapPin, label: "Address", value: "Canopy Ridge Road\nCoorg, Karnataka 571201" },
-  { Icon: Phone, label: "Reservations", value: "+91 1800 425 000" },
-  { Icon: Mail, label: "Email", value: "stay@greenova.com" },
-  { Icon: Clock, label: "Front desk", value: "Open 24 hours, every day" },
-];
-
-export default function ContactPage() {
+export default async function ContactPage() {
+  const settings = await getHotelSettings().catch(() => null) as null | { hotel?: { address?: string; phone?: string; email?: string } };
+  const hotel = settings?.hotel ?? {};
+  const details = [
+    { Icon: MapPin, label: "Address", value: (hotel.address || "Canopy Ridge Road, Coorg, Karnataka 571201").replace(", ", "\n") },
+    { Icon: Phone, label: "Reservations", value: hotel.phone || "+91 1800 425 000" },
+    { Icon: Mail, label: "Email", value: hotel.email || "stay@greenova.com" },
+    { Icon: Clock, label: "Front desk", value: "Open 24 hours, every day" },
+  ];
   return (
     <div className="pt-28 pb-24 lg:pt-36">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">

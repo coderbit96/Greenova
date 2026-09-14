@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Reveal from "@/components/ui/Reveal";
 import { LinkButton } from "@/components/ui/Button";
+import { listGallery } from "@/services/content.service";
+import GalleryGrid from "@/components/gallery/GalleryGrid";
 
 export const metadata: Metadata = {
   title: "Gallery",
@@ -13,7 +14,7 @@ export const metadata: Metadata = {
  * A masonry-style gallery. Spans are assigned per image so the grid reads as
  * a considered composition rather than a uniform tile sheet.
  */
-const photographs = [
+const fallbackPhotographs = [
   {
     src: "https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?q=80&w=1600&auto=format&fit=crop",
     alt: "A suite terrace overlooking the valley at dusk",
@@ -76,7 +77,13 @@ const photographs = [
   },
 ];
 
-export default function GalleryPage() {
+export default async function GalleryPage() {
+  const uploaded = (await listGallery().catch(() => [])) as unknown as Array<{
+    image: { url: string }; alt: string; title: string;
+  }>;
+  const photographs = uploaded.length
+    ? uploaded.map((photo) => ({ src: photo.image.url, alt: photo.alt, caption: photo.title, span: "" }))
+    : fallbackPhotographs;
   return (
     <div className="pt-28 pb-24 lg:pt-36">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -93,28 +100,7 @@ export default function GalleryPage() {
           </p>
         </Reveal>
 
-        <div className="mt-16 grid auto-rows-[240px] grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {photographs.map((photo, i) => (
-            <Reveal
-              key={photo.src}
-              delay={Math.min(i * 0.05, 0.3)}
-              className={`group relative overflow-hidden rounded-3xl ${photo.span}`}
-            >
-              <Image
-                src={photo.src}
-                alt={photo.alt}
-                fill
-                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
-                className="object-cover transition-transform duration-[900ms] ease-[cubic-bezier(0.22,1,0.36,1)] group-hover:scale-105"
-              />
-              {/* Caption only appears on hover so the grid stays quiet at rest. */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-              <p className="absolute right-5 bottom-5 left-5 translate-y-2 text-sm font-medium text-white opacity-0 transition-all duration-500 group-hover:translate-y-0 group-hover:opacity-100">
-                {photo.caption}
-              </p>
-            </Reveal>
-          ))}
-        </div>
+        <GalleryGrid photographs={photographs} />
 
         <Reveal className="mt-24 rounded-[2rem] bg-bg-subtle px-8 py-16 text-center">
           <h2 className="font-display text-4xl leading-tight font-light text-balance sm:text-5xl">

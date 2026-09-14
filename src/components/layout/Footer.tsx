@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Leaf, MapPin, Phone, Mail } from "lucide-react";
+import { getHotelSettings } from "@/services/settings.service";
 
 // lucide-react dropped brand marks, so the social glyphs are inlined.
 const socials = [
@@ -43,7 +44,16 @@ const columns = [
   },
 ];
 
-export default function Footer() {
+export default async function Footer() {
+  const settings = await getHotelSettings().catch(() => null) as null | {
+    hotel?: { name?: string; email?: string; phone?: string; address?: string; socialLinks?: Record<string, string> };
+  };
+  const hotel = settings?.hotel ?? {};
+  const name = hotel.name || "Greenova";
+  const address = hotel.address || "Canopy Ridge Road, Coorg, Karnataka 571201";
+  const phone = hotel.phone || "+91 1800 425 000";
+  const email = hotel.email || "stay@greenova.com";
+  const socialLinks = hotel.socialLinks ?? {};
   return (
     <footer className="mt-auto border-t border-border-base bg-forest-950 text-forest-100">
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
@@ -53,7 +63,7 @@ export default function Footer() {
               <span className="grid size-9 place-items-center rounded-full bg-forest-600">
                 <Leaf className="size-4 text-white" strokeWidth={2} />
               </span>
-              <span className="font-display text-2xl font-semibold text-white">Greenova</span>
+              <span className="font-display text-2xl font-semibold text-white">{name}</span>
             </Link>
             <p className="max-w-xs text-sm leading-relaxed text-forest-300">
               A rainforest sanctuary where considered luxury meets the quiet of the canopy.
@@ -63,7 +73,7 @@ export default function Footer() {
               {socials.map(({ label, path }) => (
                 <a
                   key={label}
-                  href="#"
+                  href={socialLinks[label.toLowerCase()] || "#"}
                   aria-label={label}
                   className="grid size-9 place-items-center rounded-full bg-forest-900 text-forest-300 transition-colors hover:bg-forest-700 hover:text-white"
                 >
@@ -102,22 +112,18 @@ export default function Footer() {
             <ul className="space-y-3 text-sm text-forest-300">
               <li className="flex gap-2.5">
                 <MapPin className="mt-0.5 size-4 shrink-0 text-forest-500" />
-                <span>
-                  Canopy Ridge Road
-                  <br />
-                  Coorg, Karnataka 571201
-                </span>
+                <span className="whitespace-pre-line">{address.replace(", ", "\n")}</span>
               </li>
               <li className="flex gap-2.5">
                 <Phone className="mt-0.5 size-4 shrink-0 text-forest-500" />
-                <a href="tel:+911800425000" className="transition-colors hover:text-white">
-                  +91 1800 425 000
+                <a href={`tel:${phone.replace(/[^+\d]/g, "")}`} className="transition-colors hover:text-white">
+                  {phone}
                 </a>
               </li>
               <li className="flex gap-2.5">
                 <Mail className="mt-0.5 size-4 shrink-0 text-forest-500" />
-                <a href="mailto:stay@greenova.com" className="transition-colors hover:text-white">
-                  stay@greenova.com
+                <a href={`mailto:${email}`} className="transition-colors hover:text-white">
+                  {email}
                 </a>
               </li>
             </ul>
@@ -126,7 +132,7 @@ export default function Footer() {
 
         <div className="mt-14 flex flex-col items-center justify-between gap-4 border-t border-forest-900 pt-8 sm:flex-row">
           <p className="text-xs text-forest-400">
-            &copy; {new Date().getFullYear()} Greenova Retreat & Spa. All rights reserved.
+            &copy; {new Date().getFullYear()} {name}. All rights reserved.
           </p>
           <div className="flex gap-6 text-xs text-forest-400">
             <Link href="/privacy" className="transition-colors hover:text-white">

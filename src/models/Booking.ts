@@ -77,6 +77,7 @@ export interface IBooking {
   };
   cancelledAt?: Date;
   cancellationReason?: string;
+  internalNotes: Array<{ text: string; author: mongoose.Types.ObjectId; createdAt: Date }>;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -161,6 +162,10 @@ const BookingSchema = new Schema<IBooking>(
     },
     cancelledAt: Date,
     cancellationReason: { type: String, maxlength: 500 },
+    internalNotes: {
+      type: [{ text: { type: String, required: true, maxlength: 1_000 }, author: { type: Schema.Types.ObjectId, ref: "User", required: true }, createdAt: { type: Date, required: true } }],
+      default: [],
+    },
   },
   { timestamps: true },
 );

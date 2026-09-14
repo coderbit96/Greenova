@@ -5,12 +5,14 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Search, RotateCcw, Check, X } from "lucide-react";
 import Button from "@/components/ui/Button";
+import ConfirmationDialog from "@/components/ui/ConfirmationDialog";
 import Badge, { statusTone } from "@/components/ui/Badge";
 import { formatCurrency, formatDate } from "@/utils";
 import { updateBookingAction } from "@/actions/admin.actions";
 import type { PopulatedBookingDTO } from "@/types/models";
 
 const STATUSES = ["all", "pending", "confirmed", "completed", "cancelled"] as const;
+type PendingConfirmation = { title: string; description: string; confirmLabel: string; action: () => void };
 
 export default function AdminBookings({ initialBookings }: { initialBookings: PopulatedBookingDTO[] }) {
   const router = useRouter();
@@ -18,6 +20,7 @@ export default function AdminBookings({ initialBookings }: { initialBookings: Po
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [confirmation, setConfirmation] = useState<PendingConfirmation | null>(null);
 
   const filtered = useMemo(() => {
     const term = q.trim().toLowerCase();
@@ -167,15 +170,12 @@ export default function AdminBookings({ initialBookings }: { initialBookings: Po
                               size="sm"
                               variant="ghost"
                               disabled={busy === b._id}
-                              onClick={() => {
-                                if (!confirm(`Refund ${formatCurrency(b.totalAmount)} for ${b.reference}?`))
-                                  return;
-                                update(
-                                  b._id,
-                                  { status: "cancelled", refund: true },
-                                  "Booking cancelled and refunded.",
-                                );
-                              }}
+                              onClick={() => setConfirmation({
+                                title: "Refund and cancel booking?",
+                                description: `Refund ${formatCurrency(b.totalAmount)} for ${b.reference} and cancel the reservation. This action cannot be undone automatically.`,
+                                confirmLabel: "Refund and cancel",
+                                action: () => update(b._id, { status: "cancelled", refund: true }, "Booking cancelled and refunded."),
+                              })}
                               aria-label="Refund and cancel"
                             >
                               <RotateCcw className="size-4" />
@@ -186,10 +186,12 @@ export default function AdminBookings({ initialBookings }: { initialBookings: Po
                               size="sm"
                               variant="ghost"
                               disabled={busy === b._id}
-                              onClick={() => {
-                                if (!confirm(`Cancel ${b.reference}?`)) return;
-                                update(b._id, { status: "cancelled" }, "Booking cancelled.");
-                              }}
+                              onClick={() => setConfirmation({
+                                title: "Cancel booking?",
+                                description: `Cancel ${b.reference}? This reservation will no longer hold room inventory.`,
+                                confirmLabel: "Cancel booking",
+                                action: () => update(b._id, { status: "cancelled" }, "Booking cancelled."),
+                              })}
                               className="text-red-600 dark:text-red-400"
                               aria-label="Cancel booking"
                             >
@@ -230,6 +232,19 @@ export default function AdminBookings({ initialBookings }: { initialBookings: Po
           </div>
         </div>
       )}
+      <ConfirmationDialog
+        open={confirmation !== null}
+        title={confirmation?.title ?? "Confirm action"}
+        description={confirmation?.description ?? ""}
+        confirmLabel={confirmation?.confirmLabel ?? "Confirm"}
+        onClose={() => setConfirmation(null)}
+        onConfirm={() => {
+          const action = confirmation?.action;
+          setConfirmation(null);
+          action?.();
+        }}
+        busy={confirmation ? busy !== null : false}
+      />
     </div>
   );
 }

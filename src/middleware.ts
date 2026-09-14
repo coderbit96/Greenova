@@ -20,6 +20,21 @@ const ADMIN_ONLY = ["/admin"];
 export async function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
+  // Auth.js protects its own endpoints with CSRF tokens. Apply an explicit
+  // same-origin rule to every other browser mutation. Razorpay webhooks use
+  // an HMAC instead, so they are intentionally exempt.
+  const changesState = !["GET", "HEAD", "OPTIONS"].includes(req.method);
+  const isApplicationApi = pathname.startsWith("/api/");
+  const csrfExempt =
+    (pathname.startsWith("/api/auth/") && pathname !== "/api/auth/register") ||
+    pathname === "/api/payments/webhook";
+  if (changesState && isApplicationApi && !csrfExempt) {
+    const origin = req.headers.get("origin");
+    if (!origin || origin !== req.nextUrl.origin) {
+      return NextResponse.json({ error: "Invalid request origin." }, { status: 403 });
+    }
+  }
+
   const isAdminPath = ADMIN_ONLY.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   const isProtected = PROTECTED.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
@@ -51,5 +66,6 @@ export const config = {
     "/admin/:path*",
     "/checkout",
     "/payment/:path*",
+    "/api/:path*",
   ],
 };

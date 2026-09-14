@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Reveal from "@/components/ui/Reveal";
 import { LinkButton } from "@/components/ui/Button";
+import { getHotelSettings } from "@/services/settings.service";
 
 export const metadata: Metadata = {
   title: "FAQ",
@@ -88,7 +89,10 @@ const groups = [
   },
 ];
 
-export default function FaqPage() {
+export default async function FaqPage() {
+  const settings = await getHotelSettings().catch(() => null) as null | { content?: { faqs?: Array<{ question: string; answer: string }> } };
+  const managedFaqs = settings?.content?.faqs ?? [];
+  const renderedGroups = managedFaqs.length ? [{ title: "Guest questions", items: managedFaqs.map((faq) => ({ q: faq.question, a: faq.answer })) }] : groups;
   return (
     <div className="pt-28 pb-24 lg:pt-36">
       <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
@@ -109,7 +113,7 @@ export default function FaqPage() {
         </Reveal>
 
         <div className="mt-16 space-y-14">
-          {groups.map((group, gi) => (
+          {renderedGroups.map((group, gi) => (
             <Reveal key={group.title} delay={gi * 0.06}>
               <section>
                 <h2 className="font-display text-2xl font-medium">{group.title}</h2>

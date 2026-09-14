@@ -6,6 +6,7 @@ import Room from "@/models/Room";
 import "@/models/User"; // register the schema for populate()
 import { getRoomAvailability } from "@/services/availability.service";
 import { refundPayment } from "@/lib/razorpay";
+import { reserveCoupon, releaseCoupon } from "@/services/coupon.service";
 import {
   generateReference,
   nightsBetween,
@@ -163,13 +164,22 @@ export async function createBooking(
       throw new BookingError(409, "Sorry, this room was just booked for those dates.");
     }
 
+    const basePrice = priceBreakdown(room, nights, data.roomsBooked);
+    const coupon = await reserveCoupon({
+      code: data.couponCode,
+      userId,
+      roomId: String(room._id),
+      roomAmount: basePrice.roomTotal,
+    });
     const { roomSubtotal, roomTotal, discountAmount, feesTotal, taxes, totalAmount } =
-      priceBreakdown(room, nights, data.roomsBooked);
+      priceBreakdown(room, nights, data.roomsBooked, coupon.discountAmount);
     const nameParts = data.guestName.trim().split(/\s+/);
     const firstName = nameParts[0] ?? data.guestName;
     const lastName = nameParts.slice(1).join(" ");
     const reference = generateReference();
-    const booking = await Booking.create({
+    let booking;
+    try {
+      booking = await Booking.create({
       bookingId: reference,
       reference,
       userId: userId,
@@ -202,6 +212,7 @@ export async function createBooking(
       taxAmount: taxes,
       additionalCharges: feesTotal,
       grandTotal: totalAmount,
+      couponCode: coupon.couponCode,
       paymentMethod: "razorpay",
       paymentStatus: "PENDING",
       bookingStatus: "PAYMENT_PENDING",
@@ -209,7 +220,11 @@ export async function createBooking(
       specialRequests: data.specialRequests || undefined,
       status: "pending",
       payment: { status: "pending" },
-    });
+      });
+    } catch (error) {
+      await releaseCoupon(coupon.couponCode);
+      throw error;
+    }
 
     return serialize(booking.toObject()) as unknown as BookingDTO;
   });
@@ -268,6 +283,7 @@ export async function cancelBooking(
   booking.cancelledAt = new Date();
   booking.cancellationReason = reason.slice(0, 500);
   await booking.save();
+  await releaseCoupon(booking.couponCode);
 
   return serialize(booking.toObject()) as unknown as BookingDTO;
 }
@@ -321,6 +337,7 @@ export async function listAllBookings(query: AdminBookingQuery = {}) {
 export async function updateBookingAsAdmin(
   id: string,
   data: UpdateBookingInput,
+  adminId?: string,
 ): Promise<BookingDTO> {
   if (!mongoose.isValidObjectId(id)) throw new BookingError(400, "Invalid booking id.");
 
@@ -343,6 +360,16 @@ export async function updateBookingAsAdmin(
     }
   }
 
+  if (data.bookingStatus) {
+    booking.bookingStatus = data.bookingStatus;
+    if (data.bookingStatus === "CONFIRMED" || data.bookingStatus === "CHECKED_IN") booking.status = "confirmed";
+    if (data.bookingStatus === "CHECKED_OUT") booking.status = "completed";
+    if (data.bookingStatus === "CANCELLED" || data.bookingStatus === "NO_SHOW") booking.status = "cancelled";
+  }
+  if (data.internalNote && adminId && mongoose.isValidObjectId(adminId)) {
+    booking.internalNotes.push({ text: data.internalNote, author: new mongoose.Types.ObjectId(adminId), createdAt: new Date() });
+  }
+
   if (data.refund && booking.payment.status === "paid" && booking.payment.paymentId) {
     await refundPayment(booking.payment.paymentId, booking.totalAmount);
     booking.payment.status = "refunded";
@@ -353,4 +380,71 @@ export async function updateBookingAsAdmin(
 
   await booking.save();
   return serialize(booking.toObject()) as unknown as BookingDTO;
+}
+
+
+/* --- Admin: money ------------------------------------------------------- */
+
+export interface PaymentsSummary {
+  payments: PopulatedBookingDTO[];
+  /** Paise collected. */
+  totalPaid: number;
+  /** Paise still owed on bookings that are not cancelled. */
+  totalPending: number;
+}
+
+/**
+ * Every booking that has a payment record, newest first. Bookings are the
+ * source of truth for money here — there is no separate payments collection.
+ */
+export async function listPayments(limit = 100): Promise<PaymentsSummary> {
+  await connectDB();
+
+  const [payments, paidAgg, pendingAgg] = await Promise.all([
+    Booking.find({})
+      .populate("room", "name slug")
+      .sort({ "payment.paidAt": -1, createdAt: -1 })
+      .limit(limit)
+      .lean(),
+    Booking.aggregate<{ total: number }>([
+      { $match: { "payment.status": "paid" } },
+      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+    ]),
+    Booking.aggregate<{ total: number }>([
+      { $match: { "payment.status": "pending", status: { $ne: "cancelled" } } },
+      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+    ]),
+  ]);
+
+  return {
+    payments: serialize(payments) as unknown as PopulatedBookingDTO[],
+    totalPaid: paidAgg[0]?.total ?? 0,
+    totalPending: pendingAgg[0]?.total ?? 0,
+  };
+}
+
+export interface RefundsSummary {
+  refunds: PopulatedBookingDTO[];
+  totalRefunded: number;
+}
+
+/** Bookings whose payment was returned to the guest. */
+export async function listRefunds(): Promise<RefundsSummary> {
+  await connectDB();
+
+  const [refunds, agg] = await Promise.all([
+    Booking.find({ "payment.status": "refunded" })
+      .populate("room", "name slug")
+      .sort({ "payment.refundedAt": -1 })
+      .lean(),
+    Booking.aggregate<{ total: number }>([
+      { $match: { "payment.status": "refunded" } },
+      { $group: { _id: null, total: { $sum: "$totalAmount" } } },
+    ]),
+  ]);
+
+  return {
+    refunds: serialize(refunds) as unknown as PopulatedBookingDTO[],
+    totalRefunded: agg[0]?.total ?? 0,
+  };
 }

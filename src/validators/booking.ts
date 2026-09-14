@@ -36,7 +36,11 @@ export const bookingSchema = guestSchema
     adults: z.coerce.number().int().min(1).max(20),
     children: z.coerce.number().int().min(0).max(20).default(0),
     roomsBooked: z.coerce.number().int().min(1).max(10).default(1),
+    couponCode: z.string().trim().toUpperCase().regex(/^[A-Z0-9_-]{3,40}$/, "Invalid coupon code").optional().or(z.literal("")),
   })
+  // Reject attempts to smuggle server-owned values such as price, role,
+  // booking/payment state, availability, or another user's id.
+  .strict()
   .refine((d) => new Date(d.checkOut) > new Date(d.checkIn), {
     message: "Check-out must be after check-in",
     path: ["checkOut"],
@@ -44,12 +48,14 @@ export const bookingSchema = guestSchema
 
 export const cancelBookingSchema = z.object({
   reason: z.string().max(500).optional(),
-});
+}).strict();
 
 export const updateBookingSchema = z.object({
   status: z.enum(["pending", "confirmed", "cancelled", "completed"]).optional(),
+  bookingStatus: z.enum(["CONFIRMED", "CHECKED_IN", "CHECKED_OUT", "CANCELLED", "NO_SHOW"]).optional(),
   refund: z.boolean().optional(),
   cancellationReason: z.string().max(500).optional(),
+  internalNote: z.string().trim().min(1).max(1000).optional(),
 });
 
 export type AvailabilityInput = z.infer<typeof availabilitySchema>;

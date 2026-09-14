@@ -35,6 +35,7 @@ export default function CheckoutForm({ room, stay, user }: Props) {
   const { busy, start, step } = useCheckout();
   const [view, setView] = useState<"details" | "review">("details");
   const [guest, setGuest] = useState<GuestInput | null>(null);
+  const [couponCode, setCouponCode] = useState("");
   const { nightlyRate, roomTotal, fees, taxes, totalAmount } = priceBreakdown(room, stay.nights, stay.rooms);
   const { register, handleSubmit, formState: { errors } } = useForm<GuestInput>({
     resolver: zodResolver(guestSchema),
@@ -54,6 +55,7 @@ export default function CheckoutForm({ room, stay, user }: Props) {
       adults: stay.adults,
       children: stay.children,
       roomsBooked: stay.rooms,
+      couponCode: couponCode.trim() || undefined,
       ...values,
     });
   }
@@ -86,6 +88,7 @@ export default function CheckoutForm({ room, stay, user }: Props) {
                     </div>
                     <Textarea label="Address (optional)" placeholder="Street, city, state and postal code" className="min-h-20" error={errors.guestAddress?.message} {...register("guestAddress")} />
                     <Textarea label="Special requests (optional)" placeholder="Arriving late, dietary needs, or a celebration we should know about" error={errors.specialRequests?.message} {...register("specialRequests")} />
+                    <Input label="Coupon code (optional)" value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} placeholder="GREENOVA10" />
                   </div>
                 </section>
                 <section className="rounded-3xl border border-border-base bg-bg-elevated p-6 sm:p-8">
@@ -124,7 +127,8 @@ export default function CheckoutForm({ room, stay, user }: Props) {
                     <Info className="mt-0.5 size-4 shrink-0 text-forest-600 dark:text-forest-400" />
                     <p className="text-sm leading-relaxed text-fg-muted">Razorpay handles card, UPI, net banking and wallet payments. A popup success is not a confirmation: we verify the gateway signature on our server first.</p>
                   </div>
-                  <Button type="submit" size="lg" loading={busy} className="mt-6 w-full"><CreditCard className="size-4" /> Pay {formatCurrency(totalAmount)}</Button>
+                  {couponCode && <p className="mt-3 text-xs text-fg-muted">The coupon is validated and the final discount is calculated by our server before payment.</p>}
+                  <Button type="submit" size="lg" loading={busy} className="mt-6 w-full"><CreditCard className="size-4" /> {couponCode ? "Continue to payment" : `Pay ${formatCurrency(totalAmount)}`}</Button>
                   <p className="mt-4 flex items-center justify-center gap-1.5 text-xs text-fg-muted"><ShieldCheck className="size-3.5" /> Eligible bookings can be cancelled before the check-in date.</p>
                 </section>
               </>

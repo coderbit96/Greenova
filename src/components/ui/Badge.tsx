@@ -39,16 +39,28 @@ export default function Badge({
 export function statusTone(status: string): Tone {
   switch (status) {
     case "confirmed":
+    case "CONFIRMED":
     case "paid":
+    case "PAID":
       return "success";
     case "pending":
-      return "warning";
+    case "PENDING":
+    case "PAYMENT_PENDING":
+    return "warning";
     case "cancelled":
+    case "CANCELLED":
     case "failed":
+    case "FAILED":
+    case "NO_SHOW":
       return "danger";
     case "completed":
+    case "CHECKED_IN":
+    case "CHECKED_OUT":
       return "info";
     case "refunded":
+    case "REFUNDED":
+    case "PARTIALLY_REFUNDED":
+    case "REFUND_PENDING":
       return "brass";
     default:
       return "neutral";

@@ -122,3 +122,80 @@ export async function updateUserProfile(userId: string, input: ProfileInput): Pr
 
   return serialize(user.toObject()) as unknown as UserDTO;
 }
+
+
+/* --- Admin: people ------------------------------------------------------ */
+
+export interface CustomerRow {
+  _id: string;
+  name: string;
+  email: string;
+  provider: "credentials" | "google";
+  createdAt: string;
+  /** Bookings that were not cancelled. */
+  bookingCount: number;
+  /** Paise actually collected from this guest. */
+  totalSpend: number;
+}
+
+/**
+ * Registered guests with their booking history joined in, so the admin list
+ * shows value per customer rather than just a name.
+ */
+export async function listCustomers(): Promise<CustomerRow[]> {
+  await connectDB();
+
+  const rows = await User.aggregate([
+    { $match: { role: "customer" } },
+    { $sort: { createdAt: -1 } },
+    {
+      $lookup: {
+        from: "bookings",
+        localField: "_id",
+        foreignField: "user",
+        as: "bookings",
+      },
+    },
+    {
+      $project: {
+        name: 1,
+        email: 1,
+        provider: 1,
+        createdAt: 1,
+        bookingCount: {
+          $size: {
+            $filter: {
+              input: "$bookings",
+              as: "b",
+              cond: { $ne: ["$$b.status", "cancelled"] },
+            },
+          },
+        },
+        totalSpend: {
+          $sum: {
+            $map: {
+              input: {
+                $filter: {
+                  input: "$bookings",
+                  as: "b",
+                  cond: { $eq: ["$$b.payment.status", "paid"] },
+                },
+              },
+              as: "b",
+              in: "$$b.totalAmount",
+            },
+          },
+        },
+      },
+    },
+  ]);
+
+  return serialize(rows) as unknown as CustomerRow[];
+}
+
+/** Accounts holding the administrator role. */
+export async function listAdmins(): Promise<UserDTO[]> {
+  await connectDB();
+  const admins = await User.find({ role: "admin" }).sort({ createdAt: 1 }).lean();
+  return serialize(admins) as unknown as UserDTO[];
+}

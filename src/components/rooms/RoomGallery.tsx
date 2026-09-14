@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Image from "next/image";
+import { AnimatePresence, motion } from "framer-motion";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/utils";
 import type { RoomImageDTO } from "@/types/models";
@@ -32,15 +33,25 @@ export default function RoomGallery({
   return (
     <div>
       <div className="relative aspect-4/3 overflow-hidden rounded-[2rem] sm:aspect-16/9">
-        <Image
-          key={current.url}
-          src={current.url}
-          alt={current.alt ?? roomName}
-          fill
-          priority
-          sizes="(max-width: 1024px) 100vw, 1200px"
-          className="object-cover"
-        />
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={current.url}
+            initial={{ opacity: 0, scale: 1.015 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            className="absolute inset-0"
+          >
+            <Image
+              src={current.url}
+              alt={current.alt ?? roomName}
+              fill
+              priority
+              sizes="(max-width: 1024px) 100vw, 1200px"
+              className="object-cover"
+            />
+          </motion.div>
+        </AnimatePresence>
 
         {gallery.length > 1 && (
           <>
@@ -58,11 +69,12 @@ export default function RoomGallery({
         <ul className="mt-3 grid grid-cols-4 gap-3 sm:grid-cols-6">
           {gallery.map((img, i) => (
             <li key={img.url}>
-              <button
+              <motion.button
                 type="button"
                 onClick={() => setActive(i)}
                 aria-label={`View image ${i + 1} of ${gallery.length}`}
                 aria-current={i === active}
+                whileTap={{ scale: 0.96 }}
                 className={cn(
                   "relative block aspect-4/3 w-full overflow-hidden rounded-xl transition-all duration-300",
                   i === active
@@ -77,7 +89,7 @@ export default function RoomGallery({
                   sizes="(max-width: 640px) 25vw, 16vw"
                   className="object-cover"
                 />
-              </button>
+              </motion.button>
             </li>
           ))}
         </ul>

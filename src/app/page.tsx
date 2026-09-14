@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { listFeaturedRooms } from "@/services/room.service";
+import { getHotelSettings } from "@/services/settings.service";
 import Hero from "@/components/home/Hero";
 import { Intro, Amenities, Testimonials, ClosingCTA } from "@/components/home/Sections";
 import {
@@ -23,6 +24,7 @@ export const revalidate = 3600;
 
 export default async function HomePage() {
   let rooms: RoomDTO[] = [];
+  let content: { homeHeroTitle?: string; homeHeroSubtitle?: string } = {};
 
   try {
     rooms = await listFeaturedRooms(3);
@@ -31,10 +33,17 @@ export default async function HomePage() {
     console.error("[home] could not load rooms:", err);
   }
 
+  try {
+    const settings = await getHotelSettings() as { content?: typeof content };
+    content = settings.content ?? {};
+  } catch (err) {
+    console.error("[home] could not load managed content:", err);
+  }
+
   return (
     <>
       {/* Hero carries the booking search, which queries live availability. */}
-      <Hero />
+      <Hero title={content.homeHeroTitle || undefined} subtitle={content.homeHeroSubtitle || undefined} />
 
       <Intro />
 

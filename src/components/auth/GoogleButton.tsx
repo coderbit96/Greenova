@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
 import { getProviders } from "next-auth/react";
+import { safeInternalPath } from "@/lib/redirects";
 
 /**
  * Only renders when Google OAuth is actually configured, so a missing
@@ -32,7 +33,7 @@ export default function GoogleButton({ callbackUrl = "/" }: { callbackUrl?: stri
       disabled={loading}
       onClick={() => {
         setLoading(true);
-        signIn("google", { callbackUrl });
+        signIn("google", { callbackUrl: safeInternalPath(callbackUrl, "/") });
       }}
       className="flex h-12 w-full items-center justify-center gap-3 rounded-full border border-border-base bg-bg-elevated text-sm font-medium text-fg transition-all duration-300 hover:bg-bg-subtle active:scale-[0.98] disabled:opacity-60"
     >

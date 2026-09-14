@@ -2,9 +2,11 @@ import "server-only";
 import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import Booking from "@/models/Booking";
+import PaymentWebhookEvent from "@/models/PaymentWebhookEvent";
 import { createOrder, verifyPaymentSignature } from "@/lib/razorpay";
 import { getRoomAvailability } from "@/services/availability.service";
 import { BookingError } from "@/services/booking.service";
+import { releaseCoupon } from "@/services/coupon.service";
 import { serialize } from "@/utils";
 import type { BookingDTO } from "@/types/models";
 import type { VerifyPaymentInput } from "@/validators/payment";
@@ -17,6 +19,20 @@ export interface OrderResult {
   keyId: string | null;
   reference: string;
   guest: { name: string; email: string; phone: string };
+}
+
+export interface RazorpayWebhookPayload {
+  payment?: {
+    id?: string;
+    order_id?: string;
+    amount?: number;
+    amount_refunded?: number;
+  };
+  refund?: {
+    id?: string;
+    payment_id?: string;
+    amount?: number;
+  };
 }
 
 /**
@@ -53,6 +69,7 @@ export async function createPaymentOrder(
     booking.cancelledAt = new Date();
     booking.cancellationReason = "Payment hold expired";
     await booking.save();
+    await releaseCoupon(booking.couponCode);
     throw new BookingError(409, "Your payment hold expired. Please make a new reservation.");
   }
 
@@ -76,7 +93,7 @@ export async function createPaymentOrder(
       provider: booking.payment.provider,
       keyId:
         booking.payment.provider === "razorpay"
-          ? process.env.RAZORPAY_KEY_ID ?? process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? null
+          ? process.env.RAZORPAY_KEY_ID ?? null
           : null,
       reference: booking.reference,
       guest: booking.guest,
@@ -99,7 +116,7 @@ export async function createPaymentOrder(
     amount: order.amount,
     currency: order.currency,
     provider: order.provider,
-    keyId: order.keyId ?? process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? null,
+    keyId: order.keyId,
     reference: booking.reference,
     guest: booking.guest,
   };
@@ -133,6 +150,15 @@ export async function verifyPayment(
     };
   }
 
+  // A successful popup may reach us after its inventory hold expires. Do not
+  // turn a stale checkout callback into a confirmed stay.
+  if (
+    booking.status === "cancelled" ||
+    (booking.paymentHoldExpiresAt && booking.paymentHoldExpiresAt <= new Date())
+  ) {
+    throw new BookingError(409, "This payment session has expired. Please make a new reservation.");
+  }
+
   // The order id must match the one issued for this booking.
   if (booking.payment.orderId !== razorpay_order_id) {
     throw new BookingError(400, "Payment does not match this booking.");
@@ -164,34 +190,117 @@ export async function verifyPayment(
     throw new BookingError(409, "This stay can no longer be confirmed because inventory changed.");
   }
 
-  booking.payment.status = "paid";
-  booking.payment.paymentId = razorpay_payment_id;
-  booking.payment.signature = razorpay_signature;
-  booking.payment.paidAt = new Date();
-  booking.status = "confirmed";
-  booking.paymentStatus = "PAID";
-  booking.razorpayPaymentId = razorpay_payment_id;
-  booking.razorpaySignature = razorpay_signature;
-  booking.bookingStatus = "CONFIRMED";
-  booking.paymentHoldExpiresAt = undefined;
-  await booking.save();
+  // Compare-and-set makes a browser callback and a payment.captured webhook
+  // race safe: exactly one can perform the pending -> paid transition.
+  const paidBooking = await Booking.findOneAndUpdate(
+    { _id: booking._id, "payment.orderId": razorpay_order_id, "payment.status": { $ne: "paid" } },
+    {
+      $set: {
+        "payment.status": "paid",
+        "payment.paymentId": razorpay_payment_id,
+        "payment.signature": razorpay_signature,
+        "payment.paidAt": new Date(),
+        status: "confirmed",
+        paymentStatus: "PAID",
+        razorpayPaymentId: razorpay_payment_id,
+        razorpaySignature: razorpay_signature,
+        bookingStatus: "CONFIRMED",
+      },
+      $unset: { paymentHoldExpiresAt: 1 },
+    },
+    { returnDocument: "after" },
+  );
+
+  if (!paidBooking) {
+    const latest = await Booking.findById(booking._id);
+    if (latest?.payment.status === "paid") {
+      return {
+        booking: serialize(latest.toObject()) as unknown as BookingDTO,
+        alreadyPaid: true,
+      };
+    }
+    throw new BookingError(409, "Payment state changed. Please check your booking status.");
+  }
 
   return {
-    booking: serialize(booking.toObject()) as unknown as BookingDTO,
+    booking: serialize(paidBooking.toObject()) as unknown as BookingDTO,
     alreadyPaid: false,
   };
 }
 
-/** Applies a verified webhook event. Returns false when nothing matched. */
+/**
+ * Applies a signature-verified Razorpay webhook exactly once.
+ *
+ * Inserting the receipt first is the atomic delivery guard. If processing
+ * fails we remove that receipt so Razorpay can retry instead of being falsely
+ * acknowledged as handled.
+ */
 export async function applyWebhookEvent(
   event: string,
-  entity: { id: string; order_id: string },
+  payload: RazorpayWebhookPayload,
+  eventKey: string,
 ): Promise<boolean> {
   await connectDB();
-  const booking = await Booking.findOne({ "payment.orderId": entity.order_id });
-  if (!booking) return false;
+  const payment = payload.payment;
+  const refund = payload.refund;
+  const orderId = payment?.order_id;
+  const paymentId = payment?.id ?? refund?.payment_id;
 
-  if (event === "payment.captured" && booking.payment.status !== "paid") {
+  try {
+    await PaymentWebhookEvent.create({ eventKey, event, orderId, paymentId });
+  } catch (err) {
+    if (isDuplicateKeyError(err)) return false;
+    throw err;
+  }
+
+  try {
+    if (event === "refund.created") {
+      if (!refund?.payment_id) return false;
+      const booking = await Booking.findOne({ "payment.paymentId": refund.payment_id });
+      if (!booking || booking.paymentStatus === "REFUNDED") return false;
+
+      booking.bookingStatus = "REFUND_PENDING";
+      await booking.save();
+      return true;
+    }
+
+    if (event === "refund.processed") {
+      if (!refund?.payment_id) return false;
+      const booking = await Booking.findOne({ "payment.paymentId": refund.payment_id });
+      if (!booking) return false;
+
+      const refundAmount = refund.amount ?? payment?.amount_refunded ?? booking.totalAmount;
+      const fullyRefunded = refundAmount >= booking.totalAmount;
+      if (
+        booking.paymentStatus === "REFUNDED" ||
+        (!fullyRefunded && booking.paymentStatus === "PARTIALLY_REFUNDED")
+      ) {
+        return false;
+      }
+
+      booking.payment.status = "refunded";
+      booking.payment.refundedAt = new Date();
+      booking.paymentStatus = fullyRefunded ? "REFUNDED" : "PARTIALLY_REFUNDED";
+      booking.bookingStatus = "REFUNDED";
+      await booking.save();
+      return true;
+    }
+
+    if (event === "refund.failed") {
+      if (!refund?.payment_id) return false;
+      const booking = await Booking.findOne({ "payment.paymentId": refund.payment_id });
+      if (!booking || booking.bookingStatus !== "REFUND_PENDING") return false;
+
+      booking.bookingStatus = "CANCELLED";
+      await booking.save();
+      return true;
+    }
+
+    if (!orderId) return false;
+    const booking = await Booking.findOne({ "payment.orderId": orderId });
+    if (!booking) return false;
+
+    if (event === "payment.captured" && booking.payment.status !== "paid" && payment?.id) {
     // A signed webhook is trusted for payment capture, but confirmation still
     // must obey the same inventory invariant as the browser verification path.
     const { unitsLeft } = await getRoomAvailability(
@@ -205,25 +314,40 @@ export async function applyWebhookEvent(
       return false;
     }
 
-    booking.payment.status = "paid";
-    booking.payment.paymentId = entity.id;
-    booking.payment.paidAt = new Date();
-    booking.status = "confirmed";
-    booking.paymentStatus = "PAID";
-    booking.razorpayPaymentId = entity.id;
-    booking.bookingStatus = "CONFIRMED";
-    booking.paymentHoldExpiresAt = undefined;
-    await booking.save();
-    return true;
-  }
+      const confirmed = await Booking.findOneAndUpdate(
+        { _id: booking._id, "payment.status": { $ne: "paid" } },
+        {
+          $set: {
+            "payment.status": "paid",
+            "payment.paymentId": payment.id,
+            "payment.paidAt": new Date(),
+            status: "confirmed",
+            paymentStatus: "PAID",
+            razorpayPaymentId: payment.id,
+            bookingStatus: "CONFIRMED",
+          },
+          $unset: { paymentHoldExpiresAt: 1 },
+        },
+        { returnDocument: "after" },
+      );
+      return Boolean(confirmed);
+    }
 
-  if (event === "payment.failed" && booking.payment.status === "pending") {
-    booking.payment.status = "failed";
-    booking.paymentStatus = "FAILED";
-    booking.bookingStatus = "PAYMENT_PENDING";
-    await booking.save();
-    return true;
-  }
+    if (event === "payment.failed" && booking.payment.status === "pending") {
+      booking.payment.status = "failed";
+      booking.paymentStatus = "FAILED";
+      booking.bookingStatus = "PAYMENT_PENDING";
+      await booking.save();
+      return true;
+    }
 
-  return false;
+    return false;
+  } catch (err) {
+    await PaymentWebhookEvent.deleteOne({ eventKey });
+    throw err;
+  }
+}
+
+function isDuplicateKeyError(err: unknown): boolean {
+  return typeof err === "object" && err !== null && "code" in err && (err as { code?: number }).code === 11000;
 }

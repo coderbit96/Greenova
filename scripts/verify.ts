@@ -31,11 +31,19 @@ async function main() {
   const { default: Room } = await import("../src/models/Room");
   const { default: Booking } = await import("../src/models/Booking");
   const { default: User } = await import("../src/models/User");
+  const { default: Coupon } = await import("../src/models/Coupon");
   const { getRoomAvailability, findAvailableRooms, getBlockedDates } = await import(
     "../src/services/availability.service"
   );
   const { createBooking } = await import("../src/services/booking.service");
+  const { applyWebhookEvent } = await import("../src/services/payment.service");
+  const { reserveCoupon } = await import("../src/services/coupon.service");
+  const { submitReview, moderateReview, listApprovedReviews, deleteReview } = await import(
+    "../src/services/review.service"
+  );
   const { priceBreakdown, nightsBetween, generateReference } = await import("../src/utils");
+  const { bookingSchema } = await import("../src/validators/booking");
+  const { verifyPaymentSchema } = await import("../src/validators/payment");
 
   const day = (o: number) => {
     const n = new Date();
@@ -224,6 +232,47 @@ async function main() {
     1,
   );
 
+  console.log("\n  ── API payload ownership ──");
+  const bookingPayload = {
+    roomId: String(room._id),
+    checkIn: day(90).toISOString(),
+    checkOut: day(92).toISOString(),
+    adults: 2,
+    children: 0,
+    roomsBooked: 1,
+    guestName: "Secure Guest",
+    guestEmail: "secure@example.com",
+    guestPhone: "+911234567890",
+  };
+  check(
+    "booking schema rejects forged money, role, state and user values",
+    bookingSchema.safeParse({
+      ...bookingPayload,
+      price: 1,
+      discount: 999999,
+      tax: 0,
+      grandTotal: 1,
+      availability: true,
+      role: "ADMIN",
+      paymentStatus: "PAID",
+      bookingStatus: "CONFIRMED",
+      userId: "another-user",
+    }).success,
+    false,
+  );
+  check(
+    "payment verification rejects browser-supplied booking state",
+    verifyPaymentSchema.safeParse({
+      bookingId: String(room._id),
+      razorpay_order_id: "order_test",
+      razorpay_payment_id: "pay_test",
+      razorpay_signature: "signature_test",
+      paymentStatus: "PAID",
+      userId: "another-user",
+    }).success,
+    false,
+  );
+
   console.log("\n  ── Blocked dates ──");
   const blocked = await getBlockedDates(room._id);
   const d20 = day(20).toISOString().slice(0, 10);
@@ -252,6 +301,35 @@ async function main() {
   check("discount is applied before tax", multiRoomPrice.discountAmount, 1_200_000);
   check("multi-room grand total is server-calculated", multiRoomPrice.totalAmount, 5_387_200);
 
+  console.log("\n  Coupon pricing and limits");
+  await Coupon.create({
+    code: "VERIFY10",
+    type: "PERCENTAGE",
+    value: 10,
+    startDate: day(-1),
+    expiryDate: day(30),
+    usageLimit: 1,
+    roomRestrictions: [room._id],
+    active: true,
+  } as never);
+  const coupon = await reserveCoupon({
+    code: "verify10",
+    userId: String(user._id),
+    roomId: String(room._id),
+    roomAmount: 1_000_000,
+  });
+  check("coupon code is normalized server-side", coupon.couponCode, "VERIFY10");
+  check("percentage coupon amount is calculated in paise", coupon.discountAmount, 100_000);
+  const couponPrice = priceBreakdown(1_000_000, 1, 1, coupon.discountAmount);
+  check("coupon discount lowers the taxable booking amount", [couponPrice.roomTotal, couponPrice.taxes, couponPrice.totalAmount], [900_000, 108_000, 1_008_000]);
+  let couponLimitStatus = 0;
+  try {
+    await reserveCoupon({ code: "VERIFY10", userId: String(user._id), roomId: String(room._id), roomAmount: 1_000_000 });
+  } catch (error) {
+    couponLimitStatus = (error as { status?: number }).status ?? 0;
+  }
+  check("coupon usage limit is atomically enforced", couponLimitStatus, 409);
+
   console.log("\n  ── Payment signature ──");
   const secret = "test_secret";
   const orderId = "order_test123";
@@ -269,6 +347,86 @@ async function main() {
   check("genuine signature accepted", verify(orderId, paymentId, sig), true);
   check("forged payment id rejected", verify(orderId, "pay_forged", sig), false);
   check("malformed signature rejected without throwing", verify(orderId, paymentId, "??"), false);
+
+  console.log("\n  ── Razorpay webhook idempotency ──");
+  const webhookBooking = await Booking.create({
+    reference: generateReference(),
+    user: user._id,
+    room: room._id,
+    guest: { name: "Webhook Test", email: "webhook@example.com", phone: "+911234567890" },
+    checkIn: day(100),
+    checkOut: day(102),
+    nights: 2,
+    guests: { adults: 2, children: 0 },
+    roomTotal: 2_000_000,
+    taxes: 240_000,
+    totalAmount: 2_240_000,
+    status: "pending",
+    payment: { status: "pending", provider: "mock", orderId: "order_webhook_test" },
+  });
+  const captured = await applyWebhookEvent(
+    "payment.captured",
+    { payment: { id: "pay_webhook_test", order_id: "order_webhook_test" } },
+    "evt_capture_once",
+  );
+  const duplicateCapture = await applyWebhookEvent(
+    "payment.captured",
+    { payment: { id: "pay_webhook_test", order_id: "order_webhook_test" } },
+    "evt_capture_once",
+  );
+  const capturedBooking = await Booking.findById(webhookBooking._id);
+  check("captured webhook confirms payment once", [captured, duplicateCapture], [true, false]);
+  check(
+    "captured webhook confirms the booking",
+    [capturedBooking?.paymentStatus, capturedBooking?.bookingStatus],
+    ["PAID", "CONFIRMED"],
+  );
+
+  const refundCreated = await applyWebhookEvent(
+    "refund.created",
+    { refund: { id: "rfnd_webhook_test", payment_id: "pay_webhook_test", amount: 2_240_000 } },
+    "evt_refund_created_once",
+  );
+  const pendingRefund = await Booking.findById(webhookBooking._id);
+  check("refund request stays pending until processed", [refundCreated, pendingRefund?.bookingStatus], [true, "REFUND_PENDING"]);
+
+  const refundProcessed = await applyWebhookEvent(
+    "refund.processed",
+    { refund: { id: "rfnd_webhook_test", payment_id: "pay_webhook_test", amount: 2_240_000 } },
+    "evt_refund_processed_once",
+  );
+  const refundedBooking = await Booking.findById(webhookBooking._id);
+  check(
+    "processed refund updates payment independently",
+    [refundProcessed, refundedBooking?.paymentStatus, refundedBooking?.bookingStatus],
+    [true, "REFUNDED", "REFUNDED"],
+  );
+
+  console.log("\n  ── Reviews ──");
+  const reviewBooking = await mkBooking(day(-10), day(-8), "completed");
+  const pendingReview = await submitReview(String(user._id), {
+    bookingId: String(reviewBooking._id),
+    rating: 4,
+    review: "A restful and beautifully maintained stay with thoughtful, friendly service.",
+    images: [],
+  });
+  check("only completed stays can create a pending review", pendingReview.status, "PENDING");
+  check("pending reviews are absent from public results", (await listApprovedReviews(String(room._id))).length, 0);
+
+  const approvedReview = await moderateReview(String(pendingReview._id), String(user._id), {
+    status: "APPROVED",
+  });
+  check("admin approval marks a review approved", approvedReview.status, "APPROVED");
+  const publicReviews = await listApprovedReviews(String(room._id));
+  check("only approved review appears publicly", publicReviews.map((review) => review._id), [pendingReview._id]);
+  const ratedRoom = await Room.findById(room._id);
+  check("approved review updates room rating aggregate", [ratedRoom?.rating, ratedRoom?.reviewCount], [4, 1]);
+
+  await moderateReview(String(pendingReview._id), String(user._id), { status: "HIDDEN" });
+  check("hidden review is removed from public results", (await listApprovedReviews(String(room._id))).length, 0);
+  await deleteReview(String(pendingReview._id));
+  const resetRoom = await Room.findById(room._id);
+  check("deleting a review refreshes room aggregates", [resetRoom?.rating, resetRoom?.reviewCount], [0, 0]);
 
   console.log("\n  ── Reference format ──");
   const refs = new Set(Array.from({ length: 500 }, () => generateReference()));

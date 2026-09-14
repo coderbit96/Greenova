@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Reveal from "@/components/ui/Reveal";
 import { LinkButton } from "@/components/ui/Button";
+import { listAmenities } from "@/services/content.service";
 
 export const metadata: Metadata = {
   title: "Experiences",
@@ -40,7 +41,10 @@ const experiences = [
   },
 ];
 
-export default function AmenitiesPage() {
+export default async function AmenitiesPage() {
+  const managedAmenities = (await listAmenities(true).catch(() => [])) as unknown as Array<{
+    _id: string; name: string; description?: string;
+  }>;
   return (
     <div className="pt-28 pb-24 lg:pt-36">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
@@ -58,6 +62,16 @@ export default function AmenitiesPage() {
         </Reveal>
 
         <div className="mt-20 space-y-24 lg:space-y-32">
+          {managedAmenities.length > 0 && (
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {managedAmenities.map((amenity) => (
+                <div key={amenity._id} className="rounded-3xl border border-border-base bg-bg-elevated p-7">
+                  <h2 className="font-display text-2xl font-medium">{amenity.name}</h2>
+                  {amenity.description && <p className="mt-3 text-sm leading-relaxed text-fg-muted">{amenity.description}</p>}
+                </div>
+              ))}
+            </div>
+          )}
           {experiences.map((exp, i) => (
             <Reveal key={exp.title}>
               <div

@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { CalendarDays, Users, ArrowRight, X, CreditCard } from "lucide-react";
 import Button, { LinkButton } from "@/components/ui/Button";
+import ConfirmationDialog from "@/components/ui/ConfirmationDialog";
 import Badge, { statusTone } from "@/components/ui/Badge";
 import { formatCurrency, formatDate, toUTCDay, todayUTC } from "@/utils";
 import { useBookingActions } from "@/hooks/useBookingActions";
@@ -17,6 +18,7 @@ type Filter = "upcoming" | "past" | "all";
 
 export default function BookingList({ bookings }: { bookings: PopulatedBookingDTO[] }) {
   const [filter, setFilter] = useState<Filter>("upcoming");
+  const [cancelling, setCancelling] = useState<{ id: string; reference: string } | null>(null);
   const { busyId, cancel, payNow } = useBookingActions();
 
   const today = todayUTC();
@@ -28,8 +30,10 @@ export default function BookingList({ bookings }: { bookings: PopulatedBookingDT
     return true;
   });
 
-  function confirmCancel(id: string, reference: string) {
-    if (!confirm(`Cancel booking ${reference}? Any payment will be refunded.`)) return;
+  function confirmCancel() {
+    if (!cancelling) return;
+    const { id } = cancelling;
+    setCancelling(null);
     void cancel(id);
   }
 
@@ -152,7 +156,7 @@ export default function BookingList({ bookings }: { bookings: PopulatedBookingDT
                             size="sm"
                             variant="outline"
                             disabled={busy}
-                            onClick={() => confirmCancel(b._id, b.reference)}
+                            onClick={() => setCancelling({ id: b._id, reference: b.reference })}
                           >
                             <X className="size-3.5" />
                             Cancel
@@ -174,6 +178,15 @@ export default function BookingList({ bookings }: { bookings: PopulatedBookingDT
           })}
         </ul>
       )}
+      <ConfirmationDialog
+        open={cancelling !== null}
+        title="Cancel this booking?"
+        description={`Cancel booking ${cancelling?.reference ?? ""}? Any eligible payment will be refunded according to the cancellation policy.`}
+        confirmLabel="Cancel booking"
+        onClose={() => setCancelling(null)}
+        onConfirm={confirmCancel}
+        busy={cancelling ? busyId === cancelling.id : false}
+      />
     </>
   );
 }

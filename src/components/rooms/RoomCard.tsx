@@ -4,13 +4,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { Users, Maximize, BedDouble, Star, Check } from "lucide-react";
-import {
-  formatCurrency,
-  cn,
-  effectiveRate,
-  hasDiscount,
-  discountPercent,
-} from "@/utils";
+import { formatCurrency, effectiveRate, hasDiscount, discountPercent } from "@/utils/money";
+import { cn } from "@/utils/cn";
 import Badge from "@/components/ui/Badge";
 import type { RoomDTO } from "@/types/models";
 
@@ -69,6 +64,7 @@ export default function RoomCard({
 
   const rate = effectiveRate(room);
   const discounted = hasDiscount(room);
+  const discount = discountPercent(room);
   const shownAmenities = (room.amenities ?? []).slice(0, AMENITIES_SHOWN);
   const extraAmenities = (room.amenities?.length ?? 0) - shownAmenities.length;
 
@@ -95,7 +91,7 @@ export default function RoomCard({
 
         <div className="absolute top-4 left-4 flex flex-wrap gap-2">
           {room.featured && <Badge tone="brass">Signature</Badge>}
-          {discounted && <Badge tone="success">{discountPercent(room)}% off</Badge>}
+          {discounted && <Badge tone="success">{discount}% off</Badge>}
           {soldOut ? (
             <Badge tone="danger">Sold out</Badge>
           ) : room.unitsLeft !== undefined && room.unitsLeft <= 2 ? (

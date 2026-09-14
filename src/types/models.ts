@@ -25,6 +25,7 @@ export type PaymentLifecycleStatus =
   | "REFUNDED"
   | "PARTIALLY_REFUNDED";
 export type UserRole = "customer" | "admin";
+export type ReviewStatus = "PENDING" | "APPROVED" | "REJECTED" | "HIDDEN";
 
 export interface RoomImageDTO {
   url: string;
@@ -175,6 +176,27 @@ export interface UserDTO {
   phone?: string;
   role: UserRole;
   provider: "credentials" | "google";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReviewImageDTO {
+  url: string;
+  publicId?: string;
+}
+
+export interface ReviewDTO {
+  _id: string;
+  booking: string;
+  user: string;
+  room: string | RoomDTO | null;
+  guestName: string;
+  rating: number;
+  review: string;
+  images: ReviewImageDTO[];
+  status: ReviewStatus;
+  moderatedAt?: string;
+  moderatedBy?: string;
   createdAt: string;
   updatedAt: string;
 }

@@ -2,6 +2,7 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import { loginSchema } from "@/validators/auth";
+import { allowRateLimited, clientAddress } from "@/lib/rate-limit";
 import {
   getUserByEmail,
   getUserById,
@@ -13,6 +14,10 @@ const googleEnabled = Boolean(process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOO
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
+  // Auth.js marks session cookies Secure in production and keeps them
+  // HttpOnly/SameSite=Lax. State it explicitly so deployment mode cannot
+  // accidentally downgrade the session cookie.
+  useSecureCookies: process.env.NODE_ENV === "production",
   pages: { signIn: "/login", error: "/login" },
   trustHost: true,
   providers: [
@@ -21,7 +26,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           Google({
             clientId: process.env.AUTH_GOOGLE_ID!,
             clientSecret: process.env.AUTH_GOOGLE_SECRET!,
-            allowDangerousEmailAccountLinking: true,
           }),
         ]
       : []),
@@ -31,15 +35,30 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(raw) {
+      async authorize(raw, request) {
         const parsed = loginSchema.safeParse(raw);
         if (!parsed.success) return null;
+
+        const throttle = allowRateLimited(
+          `auth:login:${clientAddress(request.headers)}:${parsed.data.email}`,
+          10,
+          15 * 60 * 1_000,
+        );
+        if (!throttle.allowed) return null;
 
         return verifyCredentials(parsed.data.email, parsed.data.password);
       },
     }),
   ],
   callbacks: {
+    redirect({ url, baseUrl }) {
+      try {
+        const target = new URL(url, baseUrl);
+        return target.origin === new URL(baseUrl).origin ? target.toString() : baseUrl;
+      } catch {
+        return baseUrl;
+      }
+    },
     async signIn({ user, account }) {
       if (account?.provider !== "google") return true;
 

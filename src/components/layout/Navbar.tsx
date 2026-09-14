@@ -28,19 +28,22 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [lastPath, setLastPath] = useState(pathname);
+  // Rewrites/proxies can make usePathname() differ between SSR and the first
+  // browser render. Defer route-dependent decoration until hydration so the
+  // initial markup is identical on both sides.
+  const [hydratedPath, setHydratedPath] = useState<string | null>(null);
 
-  // Close both menus when the route changes. Adjusting state during render
-  // (rather than in an effect) avoids a second render pass with the menu
-  // still open. See react.dev "You Might Not Need an Effect".
-  if (pathname !== lastPath) {
-    setLastPath(pathname);
-    setMobileOpen(false);
-    setMenuOpen(false);
-  }
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      setHydratedPath(pathname);
+      setMobileOpen(false);
+      setMenuOpen(false);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [pathname]);
 
   // Transparent over the hero, solid once scrolled.
-  const isHome = pathname === "/";
+  const isHome = hydratedPath === "/";
   const transparent = isHome && !scrolled;
 
   useEffect(() => {
@@ -89,7 +92,7 @@ export default function Navbar() {
           {/* Desktop nav */}
           <ul className="hidden items-center gap-1 lg:flex">
             {links.map((l) => {
-              const active = pathname === l.href;
+              const active = hydratedPath === l.href;
               return (
                 <li key={l.href}>
                   <Link
@@ -265,7 +268,7 @@ export default function Navbar() {
                       href={l.href}
                       className={cn(
                         "block rounded-xl px-4 py-3 text-base font-medium transition-colors",
-                        pathname === l.href
+                        hydratedPath === l.href
                           ? "bg-forest-50 text-forest-800 dark:bg-forest-900/40 dark:text-forest-200"
                           : "text-fg-muted hover:bg-bg-subtle hover:text-fg",
                       )}

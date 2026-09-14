@@ -7,6 +7,7 @@ import {
   createBooking as createBookingService,
   BookingError,
 } from "@/services/booking.service";
+import { CouponError } from "@/services/coupon.service";
 import { bookingSchema, cancelBookingSchema } from "@/validators/booking";
 import type { BookingDTO } from "@/types/models";
 
@@ -22,7 +23,7 @@ export type ActionResult<T> =
   | { ok: false; error: string; issues?: Record<string, string[] | undefined> };
 
 function toError(err: unknown): ActionResult<never> {
-  if (err instanceof BookingError) return { ok: false, error: err.message };
+  if (err instanceof BookingError || err instanceof CouponError) return { ok: false, error: err.message };
   console.error("[action]", err);
   return { ok: false, error: "Something went wrong. Please try again." };
 }

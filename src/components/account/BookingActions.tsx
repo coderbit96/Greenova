@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { CreditCard, X } from "lucide-react";
 import Button from "@/components/ui/Button";
+import ConfirmationDialog from "@/components/ui/ConfirmationDialog";
 import { useBookingActions } from "@/hooks/useBookingActions";
 import { toUTCDay, todayUTC } from "@/utils";
 import type { PopulatedBookingDTO } from "@/types/models";
@@ -14,6 +16,7 @@ import type { PopulatedBookingDTO } from "@/types/models";
  */
 export default function BookingActions({ booking }: { booking: PopulatedBookingDTO }) {
   const { busyId, cancel, payNow } = useBookingActions();
+  const [confirming, setConfirming] = useState(false);
   const busy = busyId === booking._id;
 
   const needsPayment =
@@ -39,14 +42,13 @@ export default function BookingActions({ booking }: { booking: PopulatedBookingD
   }
 
   function confirmCancel() {
-    if (!confirm(`Cancel booking ${booking.reference}? Any payment will be refunded.`)) {
-      return;
-    }
+    setConfirming(false);
     void cancel(booking._id);
   }
 
   return (
-    <div className="flex flex-wrap gap-3">
+    <>
+      <div className="flex flex-wrap gap-3">
       {needsPayment && (
         <Button loading={busy} onClick={() => void payNow(booking._id)}>
           <CreditCard className="size-4" />
@@ -54,11 +56,21 @@ export default function BookingActions({ booking }: { booking: PopulatedBookingD
         </Button>
       )}
       {canCancel && (
-        <Button variant="outline" disabled={busy} onClick={confirmCancel}>
+        <Button variant="outline" disabled={busy} onClick={() => setConfirming(true)}>
           <X className="size-4" />
           Cancel booking
         </Button>
       )}
-    </div>
+      </div>
+      <ConfirmationDialog
+        open={confirming}
+        title="Cancel this booking?"
+        description={`Cancel booking ${booking.reference}? Any eligible payment will be refunded according to the cancellation policy.`}
+        confirmLabel="Cancel booking"
+        onClose={() => setConfirming(false)}
+        onConfirm={confirmCancel}
+        busy={busy}
+      />
+    </>
   );
 }
