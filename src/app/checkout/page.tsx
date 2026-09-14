@@ -5,7 +5,8 @@ import { auth } from "@/lib/auth";
 import { getRoomById } from "@/services/room.service";
 import CheckoutForm from "@/components/booking/CheckoutForm";
 import Spinner from "@/components/ui/Spinner";
-import { nightsBetween, toUTCDay, todayUTC } from "@/utils";
+import { nightsBetween } from "@/utils";
+import { availabilitySchema } from "@/validators/booking";
 
 export const metadata: Metadata = {
   title: "Checkout",
@@ -37,25 +38,19 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
     redirect(`/login?callbackUrl=${encodeURIComponent(`/checkout?${query}`)}`);
   }
 
-  if (!sp.roomId || !sp.checkIn || !sp.checkOut) redirect("/availability");
+  if (!sp.roomId || !sp.checkIn || !sp.checkOut) redirect("/availability?error=invalid-dates");
 
-  const nights = nightsBetween(sp.checkIn, sp.checkOut);
-  if (nights < 1 || toUTCDay(sp.checkIn) < todayUTC()) redirect("/availability");
+  const stay = availabilitySchema.safeParse({
+    checkIn: sp.checkIn,
+    checkOut: sp.checkOut,
+    adults: sp.adults ?? 2,
+    children: sp.children ?? 0,
+    rooms: sp.rooms ?? 1,
+  });
+  if (!stay.success) redirect("/availability?error=invalid-dates");
 
-  const adults = Number(sp.adults ?? 2);
-  const children = Number(sp.children ?? 0);
-  const rooms = Number(sp.rooms ?? 1);
-  if (
-    !Number.isInteger(adults) ||
-    !Number.isInteger(children) ||
-    !Number.isInteger(rooms) ||
-    adults < 1 ||
-    children < 0 ||
-    rooms < 1 ||
-    rooms > 10
-  ) {
-    redirect("/availability");
-  }
+  const { checkIn, checkOut, adults, children, rooms } = stay.data;
+  const nights = nightsBetween(checkIn, checkOut);
 
   const room = await getRoomById(sp.roomId);
   if (!room || !room.active) redirect("/rooms");
@@ -74,8 +69,8 @@ export default async function CheckoutPage({ searchParams }: { searchParams: Pro
       <CheckoutForm
         room={room}
         stay={{
-          checkIn: sp.checkIn,
-          checkOut: sp.checkOut,
+          checkIn,
+          checkOut,
           adults,
           children,
           rooms,

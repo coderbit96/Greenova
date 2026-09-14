@@ -91,8 +91,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const session = await auth();
 
   if (!session?.user) redirect("/login?callbackUrl=/admin");
-  // Non-admins are sent home rather than shown a locked page.
-  if (session.user.role !== "admin") redirect("/");
+  if (session.user.role !== "admin") redirect("/unauthorized");
 
   return (
     <div className="pt-24 pb-24 lg:pt-28">

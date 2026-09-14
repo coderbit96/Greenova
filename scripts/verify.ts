@@ -41,8 +41,8 @@ async function main() {
   const { submitReview, moderateReview, listApprovedReviews, deleteReview } = await import(
     "../src/services/review.service"
   );
-  const { priceBreakdown, nightsBetween, generateReference } = await import("../src/utils");
-  const { bookingSchema } = await import("../src/validators/booking");
+  const { priceBreakdown, nightsBetween, generateReference, toHotelDay } = await import("../src/utils");
+  const { availabilitySchema, bookingSchema } = await import("../src/validators/booking");
   const { verifyPaymentSchema } = await import("../src/validators/payment");
 
   const day = (o: number) => {
@@ -271,6 +271,44 @@ async function main() {
       userId: "another-user",
     }).success,
     false,
+  );
+  check(
+    "date validation rejects impossible calendar dates",
+    availabilitySchema.safeParse({
+      checkIn: "2026-02-30",
+      checkOut: "2026-03-03",
+      adults: 2,
+      children: 0,
+      rooms: 1,
+    }).success,
+    false,
+  );
+  check(
+    "date validation rejects a past check-in",
+    availabilitySchema.safeParse({
+      checkIn: day(-1).toISOString().slice(0, 10),
+      checkOut: day(1).toISOString().slice(0, 10),
+      adults: 2,
+      children: 0,
+      rooms: 1,
+    }).success,
+    false,
+  );
+  check(
+    "date validation rejects same-day checkout and zero rooms",
+    availabilitySchema.safeParse({
+      checkIn: day(90).toISOString().slice(0, 10),
+      checkOut: day(90).toISOString().slice(0, 10),
+      adults: 2,
+      children: 0,
+      rooms: 0,
+    }).success,
+    false,
+  );
+  check(
+    "hotel calendar dates retain their exact day and night count",
+    [toHotelDay("2026-10-10")?.toISOString().slice(0, 10), nightsBetween("2026-10-10", "2026-10-13")],
+    ["2026-10-10", 3],
   );
 
   console.log("\n  ── Blocked dates ──");

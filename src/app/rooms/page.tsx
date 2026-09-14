@@ -6,11 +6,13 @@ import {
   type RoomSort,
 } from "@/services/room.service";
 import { findAvailableRooms } from "@/services/availability.service";
-import { serialize, formatDate, nightsBetween } from "@/utils";
+import { serialize, formatDate, nightsBetween, toUTCDay } from "@/utils";
 import RoomCard, { type RoomCardData } from "@/components/rooms/RoomCard";
 import RoomFilters from "@/components/rooms/RoomFilters";
 import SearchWidget from "@/components/booking/SearchWidget";
 import Reveal from "@/components/ui/Reveal";
+import ErrorState from "@/components/ui/ErrorState";
+import { availabilitySchema } from "@/validators/booking";
 
 export const metadata: Metadata = {
   title: "Rooms & Suites",
@@ -52,6 +54,16 @@ export default async function RoomsPage({
 }) {
   const sp = await searchParams;
   const hasSearch = Boolean(sp.checkIn && sp.checkOut);
+  const stay = hasSearch
+    ? availabilitySchema.safeParse({
+        checkIn: sp.checkIn,
+        checkOut: sp.checkOut,
+        adults: sp.adults ?? 1,
+        children: sp.children ?? 0,
+        rooms: sp.rooms ?? 1,
+      })
+    : null;
+  const invalidDates = Boolean(stay && !stay.success);
 
   const sort = (VALID_SORTS as string[]).includes(sp.sort ?? "")
     ? (sp.sort as RoomSort)
@@ -85,16 +97,16 @@ export default async function RoomsPage({
     categories = cats;
     rooms = listed as unknown as RoomCardData[];
 
-    if (hasSearch) {
+    if (stay?.success) {
       // Annotate the filtered set with live availability, intersecting on id
       // so a room failing the capacity check drops out entirely.
       const withAvailability = serialize(
         await findAvailableRooms({
-          checkIn: new Date(sp.checkIn!),
-          checkOut: new Date(sp.checkOut!),
-          adults: Number(sp.adults ?? 1),
-          children: Number(sp.children ?? 0),
-          rooms: Number(sp.rooms ?? 1),
+          checkIn: toUTCDay(stay.data.checkIn),
+          checkOut: toUTCDay(stay.data.checkOut),
+          adults: stay.data.adults,
+          children: stay.data.children,
+          rooms: stay.data.rooms,
         }),
       ) as unknown as RoomCardData[];
 
@@ -125,7 +137,7 @@ export default async function RoomsPage({
       }).toString()
     : undefined;
 
-  const nights = hasSearch ? nightsBetween(sp.checkIn!, sp.checkOut!) : 0;
+  const nights = stay?.success ? nightsBetween(stay.data.checkIn, stay.data.checkOut) : 0;
   const availableCount = rooms.filter((r) => r.available !== false).length;
 
   return (
@@ -159,7 +171,7 @@ export default async function RoomsPage({
           </Suspense>
         </div>
 
-        {hasSearch && !loadError && (
+        {stay?.success && !loadError && (
           <div className="mt-6 rounded-2xl border border-border-base bg-bg-subtle px-5 py-4 text-sm">
             <p className="text-fg">
               <span className="font-medium">{availableCount}</span>{" "}
@@ -171,10 +183,18 @@ export default async function RoomsPage({
           </div>
         )}
 
-        {loadError ? (
-          <EmptyState
+        {invalidDates ? (
+          <ErrorState
+            title="Choose valid stay dates"
+            body="Select a check-in date from today onward and a later check-out date."
+            href="/rooms"
+            action="Browse all rooms"
+          />
+        ) : loadError ? (
+          <ErrorState
             title="We could not load rooms"
-            body="The database is unreachable. Check that MONGODB_URI is set in your .env file and that MongoDB is running."
+            body="We could not load rooms right now. Please try again in a moment."
+            href={query ? `/rooms?${query}` : "/rooms"}
           />
         ) : rooms.length === 0 ? (
           <EmptyState

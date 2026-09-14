@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Search, CalendarDays, Users, BedDouble, Baby } from "lucide-react";
 import { toast } from "sonner";
@@ -13,6 +14,7 @@ import { useStayDates } from "@/hooks/useStayDates";
  */
 export default function SearchWidget({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
+  const [searching, setSearching] = useState(false);
   const {
     checkIn,
     checkOut,
@@ -30,6 +32,7 @@ export default function SearchWidget({ compact = false }: { compact?: boolean })
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (searching) return;
 
     if (checkOut <= checkIn) {
       toast.error("Check-out must be after check-in.");
@@ -43,6 +46,7 @@ export default function SearchWidget({ compact = false }: { compact?: boolean })
       children: String(children),
       rooms: String(rooms),
     });
+    setSearching(true);
     router.push(`/availability?${params.toString()}`);
   }
 
@@ -122,9 +126,9 @@ export default function SearchWidget({ compact = false }: { compact?: boolean })
         </select>
       </Field>
 
-      <Button type="submit" size="lg" className="h-full min-h-14 w-full">
+      <Button type="submit" size="lg" loading={searching} className="h-full min-h-14 w-full">
         <Search className="size-4" />
-        Search Rooms
+        {searching ? "Checking rooms" : "Search Rooms"}
       </Button>
     </form>
   );

@@ -66,8 +66,8 @@ export default function ConfirmationDialog({
             <h2 id="confirmation-title" className="mt-5 pr-8 font-display text-2xl font-medium text-fg">{title}</h2>
             <p id="confirmation-description" className="mt-2 text-sm leading-relaxed text-fg-muted">{description}</p>
             <div className="mt-7 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-              <button ref={cancelRef} type="button" onClick={onClose} disabled={busy} className="rounded-full px-5 py-2.5 text-sm font-medium text-fg transition-colors hover:bg-bg-subtle disabled:opacity-50">Keep booking</button>
-              <button type="button" onClick={onConfirm} disabled={busy} className="rounded-full bg-red-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:pointer-events-none disabled:opacity-50">{busy ? "Processing…" : confirmLabel}</button>
+              <button ref={cancelRef} type="button" onClick={onClose} disabled={busy} className="min-h-11 rounded-full px-5 py-2.5 text-sm font-medium text-fg transition-colors hover:bg-bg-subtle disabled:opacity-50">Keep booking</button>
+              <button type="button" onClick={onConfirm} disabled={busy} className="min-h-11 rounded-full bg-red-600 px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:pointer-events-none disabled:opacity-50">{busy ? "Processing…" : confirmLabel}</button>
             </div>
           </motion.div>
         </motion.div>

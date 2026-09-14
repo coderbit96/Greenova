@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CalendarSearch, ShieldCheck, Sparkles } from "lucide-react";
 import { findAvailableRooms } from "@/services/availability.service";
-import { serialize, formatDate, nightsBetween } from "@/utils";
+import { serialize, formatDate, nightsBetween, toUTCDay } from "@/utils";
 import RoomCard, { type RoomCardData } from "@/components/rooms/RoomCard";
 import SearchWidget from "@/components/booking/SearchWidget";
 import Reveal from "@/components/ui/Reveal";
+import ErrorState from "@/components/ui/ErrorState";
+import { availabilitySchema } from "@/validators/booking";
 
 export const metadata: Metadata = {
   title: "Availability",
@@ -21,6 +23,7 @@ interface SearchParams {
   adults?: string;
   children?: string;
   rooms?: string;
+  error?: string;
 }
 
 /**
@@ -34,18 +37,28 @@ export default async function AvailabilityPage({
 }) {
   const sp = await searchParams;
   const hasSearch = Boolean(sp.checkIn && sp.checkOut);
+  const stay = hasSearch
+    ? availabilitySchema.safeParse({
+        checkIn: sp.checkIn,
+        checkOut: sp.checkOut,
+        adults: sp.adults ?? 1,
+        children: sp.children ?? 0,
+        rooms: sp.rooms ?? 1,
+      })
+    : null;
+  const invalidDates = Boolean(sp.error === "invalid-dates" || (stay && !stay.success));
 
   let rooms: RoomCardData[] = [];
   let loadError = false;
 
-  if (hasSearch) {
+  if (stay?.success) {
     try {
       const result = await findAvailableRooms({
-        checkIn: new Date(sp.checkIn!),
-        checkOut: new Date(sp.checkOut!),
-        adults: Number(sp.adults ?? 1),
-        children: Number(sp.children ?? 0),
-        rooms: Number(sp.rooms ?? 1),
+        checkIn: toUTCDay(stay.data.checkIn),
+        checkOut: toUTCDay(stay.data.checkOut),
+        adults: stay.data.adults,
+        children: stay.data.children,
+        rooms: stay.data.rooms,
       });
       rooms = serialize(result) as unknown as RoomCardData[];
     } catch (err) {
@@ -64,7 +77,7 @@ export default async function AvailabilityPage({
       }).toString()
     : undefined;
 
-  const nights = hasSearch ? nightsBetween(sp.checkIn!, sp.checkOut!) : 0;
+  const nights = stay?.success ? nightsBetween(stay.data.checkIn, stay.data.checkOut) : 0;
   const available = rooms.filter((r) => r.available !== false);
   const soldOut = rooms.filter((r) => r.available === false);
 
@@ -88,7 +101,7 @@ export default async function AvailabilityPage({
           <SearchWidget compact />
         </div>
 
-        {!hasSearch ? (
+        {!hasSearch && !invalidDates ? (
           /* Nothing searched yet — explain what happens next. */
           <div className="mt-16">
             <div className="grid gap-6 sm:grid-cols-3">
@@ -129,10 +142,18 @@ export default async function AvailabilityPage({
               .
             </p>
           </div>
+        ) : invalidDates ? (
+          <ErrorState
+            title="Choose valid stay dates"
+            body="Select a check-in date from today onward and a later check-out date."
+            href="/availability"
+            action="Choose dates"
+          />
         ) : loadError ? (
-          <EmptyState
+          <ErrorState
             title="We could not check availability"
-            body="The database is unreachable. Check that MONGODB_URI is set and MongoDB is running, then try again."
+            body="Our availability service is temporarily unavailable. Please try again in a moment."
+            href={query ? `/availability?${query}` : "/availability"}
           />
         ) : (
           <>

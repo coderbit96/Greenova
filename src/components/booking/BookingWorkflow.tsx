@@ -26,7 +26,7 @@ export default function BookingWorkflow({ view, step }: { view: View; step: Chec
   const active = activeStage(view, step);
 
   return (
-    <ol className="mb-10 grid gap-3 sm:grid-cols-5" aria-label="Booking progress">
+    <ol className="mb-10 grid gap-3 sm:grid-cols-5" aria-label="Booking progress" aria-live="polite">
       {stages.map((stage, index) => {
         const complete = index < active || step === "done";
         const current = index === active && step !== "done";

@@ -12,6 +12,7 @@ const easeLuxe = [0.22, 1, 0.36, 1] as const;
 export default function Hero({ title, subtitle }: { title?: string; subtitle?: string }) {
   const imageRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const sectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     // Respect the user's motion preference — no parallax if reduced.
@@ -21,7 +22,9 @@ export default function Hero({ title, subtitle }: { title?: string; subtitle?: s
     // Slow drift on the backdrop as the page scrolls, driven by rAF
     // rather than ScrollTrigger to keep the bundle lean.
     let raf = 0;
+    let inViewport = true;
     const onScroll = () => {
+      if (!inViewport) return;
       cancelAnimationFrame(raf);
       raf = requestAnimationFrame(() => {
         const y = window.scrollY;
@@ -31,6 +34,14 @@ export default function Hero({ title, subtitle }: { title?: string; subtitle?: s
       });
     };
     window.addEventListener("scroll", onScroll, { passive: true });
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        inViewport = entry.isIntersecting;
+        if (!inViewport) cancelAnimationFrame(raf);
+      },
+      { threshold: 0 },
+    );
+    if (sectionRef.current) observer.observe(sectionRef.current);
 
     // Gentle initial push-in.
     const ctx = gsap.context(() => {
@@ -43,13 +54,14 @@ export default function Hero({ title, subtitle }: { title?: string; subtitle?: s
 
     return () => {
       window.removeEventListener("scroll", onScroll);
+      observer.disconnect();
       cancelAnimationFrame(raf);
       ctx.revert();
     };
   }, []);
 
   return (
-    <section className="relative flex min-h-[100svh] flex-col items-center justify-center overflow-hidden">
+    <section ref={sectionRef} className="relative flex min-h-[100svh] flex-col items-center justify-center overflow-hidden">
       {/* Backdrop */}
       <div ref={imageRef} className="absolute inset-0 -z-20 will-change-transform">
         <Image

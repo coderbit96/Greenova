@@ -134,6 +134,10 @@ export async function createBooking(
   const checkIn = toUTCDay(data.checkIn);
   const checkOut = toUTCDay(data.checkOut);
 
+  if (Number.isNaN(checkIn.getTime()) || Number.isNaN(checkOut.getTime())) {
+    throw new BookingError(400, "Enter valid check-in and check-out dates.");
+  }
+
   if (checkIn < todayUTC()) {
     throw new BookingError(400, "Check-in cannot be in the past.");
   }

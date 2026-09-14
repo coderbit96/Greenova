@@ -1,6 +1,34 @@
 import { z } from "zod";
+import { isValidHotelDate, toUTCDay, todayUTC } from "@/utils/dates";
 
-const dateString = z.string().refine((s) => !Number.isNaN(Date.parse(s)), "Invalid date");
+const dateString = z
+  .string()
+  .trim()
+  .refine(isValidHotelDate, "Enter a valid date in YYYY-MM-DD format");
+
+function validateStayDates(
+  data: { checkIn: string; checkOut: string },
+  ctx: z.RefinementCtx,
+) {
+  const checkIn = toUTCDay(data.checkIn);
+  const checkOut = toUTCDay(data.checkOut);
+
+  if (checkIn < todayUTC()) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["checkIn"],
+      message: "Check-in cannot be in the past",
+    });
+  }
+
+  if (checkOut <= checkIn) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["checkOut"],
+      message: "Check-out must be after check-in",
+    });
+  }
+}
 
 export const availabilitySchema = z
   .object({
@@ -10,10 +38,7 @@ export const availabilitySchema = z
     children: z.coerce.number().int().min(0).max(20).default(0),
     rooms: z.coerce.number().int().min(1).max(10).default(1),
   })
-  .refine((d) => new Date(d.checkOut) > new Date(d.checkIn), {
-    message: "Check-out must be after check-in",
-    path: ["checkOut"],
-  });
+  .superRefine(validateStayDates);
 
 /** Guest contact details, shared by the checkout form and the booking API. */
 export const guestSchema = z.object({
@@ -41,10 +66,7 @@ export const bookingSchema = guestSchema
   // Reject attempts to smuggle server-owned values such as price, role,
   // booking/payment state, availability, or another user's id.
   .strict()
-  .refine((d) => new Date(d.checkOut) > new Date(d.checkIn), {
-    message: "Check-out must be after check-in",
-    path: ["checkOut"],
-  });
+  .superRefine(validateStayDates);
 
 export const cancelBookingSchema = z.object({
   reason: z.string().max(500).optional(),

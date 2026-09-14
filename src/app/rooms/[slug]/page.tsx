@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import {
@@ -29,18 +30,20 @@ import RoomCard from "@/components/rooms/RoomCard";
 import Reveal from "@/components/ui/Reveal";
 import Badge from "@/components/ui/Badge";
 import RoomReviews from "@/components/rooms/RoomReviews";
+import JsonLd from "@/components/seo/JsonLd";
 
 export const dynamic = "force-dynamic";
+const siteUrl = (process.env.AUTH_URL ?? "http://localhost:3000").replace(/\/$/, "");
 
 /** Never let a database outage turn a room page into a hard 500. */
-async function loadRoom(slug: string) {
+const loadRoom = cache(async (slug: string) => {
   try {
     return await getRoomBySlug(slug);
   } catch (err) {
     console.error("[room] load failed:", err);
     return null;
   }
-}
+});
 
 export async function generateMetadata({
   params,
@@ -54,7 +57,15 @@ export async function generateMetadata({
   return {
     title: room.name,
     description: room.shortDescription,
+    alternates: { canonical: `/rooms/${room.slug}` },
     openGraph: {
+      title: `${room.name} · Greenova`,
+      description: room.shortDescription,
+      images: room.images?.[0]?.url ? [room.images[0].url] : undefined,
+      url: `/rooms/${room.slug}`,
+    },
+    twitter: {
+      card: "summary_large_image",
       title: `${room.name} · Greenova`,
       description: room.shortDescription,
       images: room.images?.[0]?.url ? [room.images[0].url] : undefined,
@@ -118,6 +129,39 @@ export default async function RoomDetailPage({
 
   return (
     <div className="pt-24 pb-24 lg:pt-32">
+      <JsonLd
+        data={[
+          {
+            "@context": "https://schema.org",
+            "@type": "BreadcrumbList",
+            itemListElement: [
+              { "@type": "ListItem", position: 1, name: "Home", item: siteUrl },
+              { "@type": "ListItem", position: 2, name: "Rooms & Suites", item: `${siteUrl}/rooms` },
+              { "@type": "ListItem", position: 3, name: room.name, item: `${siteUrl}/rooms/${room.slug}` },
+            ],
+          },
+          {
+            "@context": "https://schema.org",
+            "@type": "HotelRoom",
+            name: room.name,
+            description: room.shortDescription,
+            image: gallery.map((image) => image.url),
+            bed: room.bedType,
+            occupancy: {
+              "@type": "QuantitativeValue",
+              maxValue: room.capacity.adults + room.capacity.children,
+            },
+            containedInPlace: { "@type": "Hotel", name: "Greenova" },
+            offers: {
+              "@type": "Offer",
+              priceCurrency: "INR",
+              price: (rate / 100).toFixed(2),
+              availability: sellableUnits > 0 ? "https://schema.org/InStock" : "https://schema.org/OutOfStock",
+              url: `${siteUrl}/rooms/${room.slug}`,
+            },
+          },
+        ]}
+      />
       <section className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <RoomGallery images={gallery} roomName={room.name} />
       </section>

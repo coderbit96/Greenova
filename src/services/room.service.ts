@@ -32,6 +32,15 @@ const SORTS: Record<RoomSort, Record<string, 1 | -1>> = {
   popular: { bookingCount: -1, reviewCount: -1 },
 };
 
+// Keep catalogue payloads lean: room-detail pages fetch the long description,
+// policies and complete gallery only when a guest opens that room.
+const ROOM_CARD_FIELDS = [
+  "name", "slug", "category", "shortDescription", "thumbnail", "images",
+  "pricePerNight", "discountedPrice", "capacity", "bedType", "sizeSqft",
+  "amenities", "featured", "rating", "reviewCount", "totalUnits", "active",
+  "updatedAt",
+].join(" ");
+
 export async function listActiveRooms(
   filters: RoomListFilters = {},
 ): Promise<RoomDTO[]> {
@@ -63,6 +72,7 @@ export async function listActiveRooms(
   }
 
   const rooms = await Room.find(query)
+    .select(ROOM_CARD_FIELDS)
     .sort(SORTS[filters.sort ?? "recommended"])
     .lean();
 
@@ -78,6 +88,7 @@ export async function listRoomCategories(): Promise<string[]> {
 export async function listFeaturedRooms(limit = 3): Promise<RoomDTO[]> {
   await connectDB();
   const rooms = await Room.find({ active: true })
+    .select(ROOM_CARD_FIELDS)
     .sort({ featured: -1, pricePerNight: 1 })
     .limit(limit)
     .lean();
@@ -134,6 +145,12 @@ export async function getRoomById(id: string): Promise<RoomDTO | null> {
   await connectDB();
   const room = await Room.findById(id).lean();
   return room ? (serialize(room) as unknown as RoomDTO) : null;
+}
+
+/** Small projection used by sitemap generation; avoids reading room galleries. */
+export async function listRoomSitemapEntries(): Promise<Array<{ slug: string; updatedAt: Date }>> {
+  await connectDB();
+  return Room.find({ active: true }).select("slug updatedAt").lean();
 }
 
 /** Splits the comma-separated admin form fields into stored arrays. */

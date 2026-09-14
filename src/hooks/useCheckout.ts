@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { createBookingAction } from "@/actions/booking.actions";
@@ -19,11 +19,17 @@ export type CheckoutStep = "idle" | "creating" | "paying" | "verifying" | "done"
 export function useCheckout() {
   const router = useRouter();
   const [step, setStep] = useState<CheckoutStep>("idle");
+  const inFlight = useRef(false);
 
   const busy = step !== "idle" && step !== "done";
 
   const start = useCallback(
     async (input: BookingInput) => {
+      // State updates are asynchronous; this ref closes the short gap before
+      // the disabled button re-renders and prevents duplicate orders.
+      if (inFlight.current) return;
+      inFlight.current = true;
+      try {
       setStep("creating");
 
       // 1. Create the booking. The server recomputes the price and re-checks
@@ -97,6 +103,9 @@ export function useCheckout() {
 
       setStep("done");
       router.push(`/payment/status?booking=${bookingId}`);
+      } finally {
+        inFlight.current = false;
+      }
     },
     [router],
   );

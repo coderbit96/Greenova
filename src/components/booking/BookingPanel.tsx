@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { toast } from "sonner";
 import { CalendarDays, Users, BedDouble, ShieldCheck, Loader2 } from "lucide-react";
 import Button from "@/components/ui/Button";
-import { formatCurrency, priceBreakdown } from "@/utils";
+import { formatCurrency, priceBreakdown, toUTCDay } from "@/utils";
 import { useAvailability } from "@/hooks/useAvailability";
 import { useStayDates } from "@/hooks/useStayDates";
 
@@ -75,7 +75,7 @@ export default function BookingPanel({ room, blockedDates, initial }: Props) {
   // Warn when the selected range covers a night that is already sold out.
   const rangeHasBlockedNight = (() => {
     if (nights < 1) return false;
-    const start = new Date(checkIn).getTime();
+    const start = toUTCDay(checkIn).getTime();
     for (let i = 0; i < nights; i++) {
       const day = new Date(start + i * 86_400_000).toISOString().slice(0, 10);
       if (blockedDates.includes(day)) return true;

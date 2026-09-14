@@ -78,7 +78,7 @@ export default function RoomFilters({
         {hasFilters && (
           <button
             onClick={clearAll}
-            className="inline-flex items-center gap-1.5 text-xs font-medium text-fg-muted transition-colors hover:text-fg"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-xs font-medium text-fg-muted transition-colors hover:bg-bg-subtle hover:text-fg"
           >
             <X className="size-3.5" />
             Clear filters
@@ -122,7 +122,7 @@ export default function RoomFilters({
         />
       </div>
 
-      <label className="mt-4 flex w-fit cursor-pointer items-center gap-2.5 text-sm text-fg">
+      <label className="mt-4 flex min-h-11 w-fit cursor-pointer items-center gap-2.5 rounded-xl px-2 text-sm text-fg transition-colors hover:bg-bg-subtle">
         <input
           type="checkbox"
           checked={availableOnly}

@@ -54,7 +54,7 @@ export async function middleware(req: NextRequest) {
   }
 
   if (isAdminPath && token.role !== "admin") {
-    return NextResponse.redirect(new URL("/", req.url));
+    return NextResponse.redirect(new URL("/unauthorized", req.url));
   }
 
   return NextResponse.next();

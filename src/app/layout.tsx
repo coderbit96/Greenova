@@ -5,6 +5,7 @@ import Providers from "@/components/layout/Providers";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import PageTransition from "@/components/layout/PageTransition";
+import JsonLd from "@/components/seo/JsonLd";
 import "./globals.css";
 
 const inter = Inter({
@@ -29,11 +30,19 @@ export const metadata: Metadata = {
   description:
     "An award-winning luxury retreat where rainforest canopy meets refined hospitality. Reserve suites, villas and spa experiences at Greenova.",
   keywords: ["luxury hotel", "resort booking", "spa retreat", "Greenova", "eco luxury"],
+  alternates: { canonical: "/" },
   openGraph: {
     title: "Greenova — Luxury Retreat & Spa",
     description: "Where the rainforest meets refined hospitality.",
     type: "website",
     siteName: "Greenova",
+    url: "/",
+    locale: "en_IN",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Greenova — Luxury Retreat & Spa",
+    description: "Where the rainforest meets refined hospitality.",
   },
   robots: { index: true, follow: true },
 };
@@ -60,6 +69,22 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         }
       >
         <Providers>
+          <JsonLd
+            data={{
+              "@context": "https://schema.org",
+              "@type": "Hotel",
+              name: "Greenova",
+              url: process.env.AUTH_URL ?? "http://localhost:3000",
+              description: "A luxury rainforest retreat and spa in Coorg, India.",
+              priceRange: "₹₹₹₹",
+              address: {
+                "@type": "PostalAddress",
+                addressLocality: "Coorg",
+                addressRegion: "Karnataka",
+                addressCountry: "IN",
+              },
+            }}
+          />
           <Navbar />
           <PageTransition>{children}</PageTransition>
           <Footer />

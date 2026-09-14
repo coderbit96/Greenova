@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { listActiveRooms } from "@/services/room.service";
+import { listRoomSitemapEntries } from "@/services/room.service";
 
 const baseUrl = process.env.AUTH_URL ?? "http://localhost:3000";
 
@@ -9,6 +9,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${baseUrl}/rooms`, changeFrequency: "daily", priority: 0.9 },
     { url: `${baseUrl}/availability`, changeFrequency: "daily", priority: 0.9 },
     { url: `${baseUrl}/offers`, changeFrequency: "weekly", priority: 0.8 },
+    { url: `${baseUrl}/offers/weekend-getaway`, changeFrequency: "weekly", priority: 0.7 },
     { url: `${baseUrl}/amenities`, changeFrequency: "monthly", priority: 0.7 },
     { url: `${baseUrl}/dining`, changeFrequency: "monthly", priority: 0.7 },
     { url: `${baseUrl}/gallery`, changeFrequency: "monthly", priority: 0.6 },
@@ -22,7 +23,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Room pages are the money pages — include each live one.
   try {
-    const rooms = await listActiveRooms();
+    const rooms = await listRoomSitemapEntries();
 
     return [
       ...staticRoutes,

@@ -112,7 +112,7 @@ function GalleryButton({
       onClick={onClick}
       aria-label={side === "left" ? "Previous image" : "Next image"}
       className={cn(
-        "absolute top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full",
+        "absolute top-1/2 grid size-11 -translate-y-1/2 place-items-center rounded-full",
         "bg-black/45 text-white backdrop-blur transition-colors hover:bg-black/70",
         side === "left" ? "left-4" : "right-4",
       )}

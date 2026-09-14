@@ -1,6 +1,7 @@
 import { availabilitySchema } from "@/validators/booking";
 import { findAvailableRooms, getRoomAvailability } from "@/services/availability.service";
 import { errorResponse } from "@/lib/guards";
+import { toUTCDay } from "@/utils";
 
 export async function GET(req: Request) {
   try {
@@ -26,13 +27,13 @@ export async function GET(req: Request) {
     // A room id narrows the query to that room's remaining units.
     if (roomId) {
       return Response.json(
-        await getRoomAvailability(roomId, new Date(checkIn), new Date(checkOut), undefined, unitsWanted),
+        await getRoomAvailability(roomId, toUTCDay(checkIn), toUTCDay(checkOut), undefined, unitsWanted),
       );
     }
 
     const rooms = await findAvailableRooms({
-      checkIn: new Date(checkIn),
-      checkOut: new Date(checkOut),
+      checkIn: toUTCDay(checkIn),
+      checkOut: toUTCDay(checkOut),
       adults,
       children,
       rooms: unitsWanted,

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -28,6 +28,7 @@ export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const mobileCloseRef = useRef<HTMLButtonElement>(null);
   // Rewrites/proxies can make usePathname() differ between SSR and the first
   // browser render. Defer route-dependent decoration until hydration so the
   // initial markup is identical on both sides.
@@ -60,6 +61,18 @@ export default function Navbar() {
       document.body.style.overflow = "";
     };
   }, [mobileOpen]);
+
+  useEffect(() => {
+    if (!mobileOpen && !menuOpen) return;
+    if (mobileOpen) mobileCloseRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setMobileOpen(false);
+      setMenuOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [mobileOpen, menuOpen]);
 
   return (
     <>
@@ -131,6 +144,7 @@ export default function Navbar() {
                   onClick={() => setMenuOpen((v) => !v)}
                   aria-expanded={menuOpen}
                   aria-haspopup="menu"
+                  aria-controls="account-menu"
                   className={cn(
                     "flex items-center gap-2 rounded-full py-1.5 pl-1.5 pr-3 text-sm font-medium transition-colors",
                     transparent
@@ -157,8 +171,9 @@ export default function Navbar() {
                 <AnimatePresence>
                   {menuOpen && (
                     <>
-                      <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                      <button type="button" className="fixed inset-0 z-10 cursor-default" onClick={() => setMenuOpen(false)} aria-label="Close account menu" />
                       <motion.div
+                        id="account-menu"
                         role="menu"
                         initial={{ opacity: 0, y: 8, scale: 0.97 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -223,7 +238,7 @@ export default function Navbar() {
               onClick={() => setMobileOpen(true)}
               aria-label="Open menu"
               className={cn(
-                "grid size-10 place-items-center rounded-full transition-colors lg:hidden",
+                "grid size-11 place-items-center rounded-full transition-colors lg:hidden",
                 transparent ? "text-white hover:bg-white/15" : "text-fg hover:bg-bg-subtle",
               )}
             >
@@ -242,8 +257,11 @@ export default function Navbar() {
             exit={{ opacity: 0 }}
             className="fixed inset-0 z-[60] lg:hidden"
           >
-            <div className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} />
+            <button type="button" className="absolute inset-0 bg-black/50" onClick={() => setMobileOpen(false)} aria-label="Close menu" />
             <motion.aside
+              role="dialog"
+              aria-modal="true"
+              aria-label="Site navigation"
               initial={{ x: "100%" }}
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
@@ -253,9 +271,10 @@ export default function Navbar() {
               <div className="mb-8 flex items-center justify-between">
                 <span className="font-display text-2xl font-semibold">Greenova</span>
                 <button
+                  ref={mobileCloseRef}
                   onClick={() => setMobileOpen(false)}
                   aria-label="Close menu"
-                  className="grid size-10 place-items-center rounded-full hover:bg-bg-subtle"
+                  className="grid size-11 place-items-center rounded-full hover:bg-bg-subtle"
                 >
                   <X className="size-5" />
                 </button>

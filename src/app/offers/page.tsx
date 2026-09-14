@@ -42,6 +42,7 @@ const offers = [
   },
   {
     tag: "Two people",
+    slug: "weekend-getaway",
     title: "The Long Weekend",
     saving: "Spa included",
     body: "Friday to Monday in a Canopy Suite, with the full spa circuit, a private dinner on the terrace and a guided walk to the ridge at sunrise. Built for people who need to be somewhere else by Tuesday.",
@@ -119,9 +120,9 @@ export default function OffersPage() {
                   </ul>
 
                   <div className="mt-auto pt-8">
-                    <LinkButton href="/availability">
+                    <LinkButton href={offer.slug ? `/offers/${offer.slug}` : "/availability"}>
                       <CalendarDays className="size-4" />
-                      Check dates
+                      {offer.slug ? "Explore offer" : "Check dates"}
                     </LinkButton>
                   </div>
                 </div>

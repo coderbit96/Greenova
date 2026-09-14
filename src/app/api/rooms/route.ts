@@ -2,6 +2,7 @@ import { listActiveRooms } from "@/services/room.service";
 import { findAvailableRooms } from "@/services/availability.service";
 import { errorResponse } from "@/lib/guards";
 import { availabilitySchema } from "@/validators/booking";
+import { toUTCDay } from "@/utils";
 
 export async function GET(req: Request) {
   try {
@@ -22,8 +23,8 @@ export async function GET(req: Request) {
         return Response.json({ error: "Invalid availability search." }, { status: 400 });
       }
       const rooms = await findAvailableRooms({
-        checkIn: new Date(parsed.data.checkIn),
-        checkOut: new Date(parsed.data.checkOut),
+        checkIn: toUTCDay(parsed.data.checkIn),
+        checkOut: toUTCDay(parsed.data.checkOut),
         adults: parsed.data.adults,
         children: parsed.data.children,
         rooms: parsed.data.rooms,

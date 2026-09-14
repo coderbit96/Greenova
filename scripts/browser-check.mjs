@@ -27,10 +27,14 @@ if (!executablePath) {
 }
 
 const VIEWPORTS = [
-  { name: "mobile", width: 320, height: 720 },
-  { name: "phone", width: 390, height: 844 },
+  { name: "mobile-s", width: 320, height: 720 },
+  { name: "mobile-m", width: 375, height: 812 },
+  { name: "mobile-l", width: 430, height: 932 },
   { name: "tablet", width: 768, height: 1024 },
-  { name: "desktop", width: 1440, height: 900 },
+  { name: "laptop", width: 1024, height: 768 },
+  { name: "desktop", width: 1280, height: 800 },
+  { name: "desktop-l", width: 1440, height: 900 },
+  { name: "wide", width: 1920, height: 1080 },
 ];
 
 const PAGES = [
@@ -166,13 +170,86 @@ for (const vp of VIEWPORTS) {
   await page.close();
 }
 
+// ── Reachability, labels and touch targets ─────────────────────
+console.log("\n  ── Accessibility & touch targets ──");
+for (const vp of VIEWPORTS.filter((item) => item.width <= 430)) {
+  const page = await browser.newPage();
+  await page.setViewport({ width: vp.width, height: vp.height });
+  const bad = [];
+
+  for (const path of PAGES) {
+    try {
+      await page.goto(BASE + path, { waitUntil: "domcontentloaded", timeout: 30000 });
+      const issues = await page.evaluate(() => {
+        const visible = (element) => {
+          const style = getComputedStyle(element);
+          const rect = element.getBoundingClientRect();
+          return style.visibility !== "hidden" && style.display !== "none" && rect.width > 0 && rect.height > 0;
+        };
+        const controls = [...document.querySelectorAll("button, input:not([type=hidden]), select, textarea")]
+          .filter((element) => element.getAttribute("aria-hidden") !== "true")
+          .filter(visible);
+        const tiny = controls
+          .filter((element) => {
+            // Inputs in this interface are often wrapped by their <label>;
+            // check the whole labelled control, not just the text field.
+            const target = element.closest("label") || element;
+            const rect = target.getBoundingClientRect();
+            return rect.width < 40 || rect.height < 40;
+          })
+          .slice(0, 3)
+          .map((element) => element.tagName.toLowerCase() + "#" + (element.id || element.getAttribute("aria-label") || element.textContent?.trim().slice(0, 24) || "unlabelled"));
+        const unlabeled = [...document.querySelectorAll("input:not([type=hidden]), select, textarea")]
+          .filter((element) => element.getAttribute("aria-hidden") !== "true")
+          .filter(visible)
+          .filter((element) => {
+            const input = element;
+            return !input.labels?.length && !input.getAttribute("aria-label") && !input.getAttribute("aria-labelledby");
+          })
+          .slice(0, 3)
+          .map((element) => element.tagName.toLowerCase() + "#" + (element.id || element.getAttribute("name") || "unknown"));
+        const missingAlt = [...document.images]
+          .filter((image) => !image.hasAttribute("alt"))
+          .slice(0, 3)
+          .map((image) => image.currentSrc || image.src);
+        const clipped = [...document.querySelectorAll("button, a, input, select, textarea")]
+          .filter(visible)
+          .filter((element) => {
+            const rect = element.getBoundingClientRect();
+            return rect.right > document.documentElement.clientWidth + 1;
+          })
+          .slice(0, 3)
+          .map((element) => element.tagName.toLowerCase() + "#" + (element.getAttribute("aria-label") || element.textContent?.trim().slice(0, 24) || "unknown"));
+        return { tiny, unlabeled, missingAlt, clipped };
+      });
+
+      for (const [kind, values] of Object.entries(issues)) {
+        if (values.length) bad.push(path + ": " + kind + " — " + values.join(", "));
+      }
+    } catch (err) {
+      bad.push(path + ": " + err.message.slice(0, 80));
+    }
+  }
+
+  if (bad.length) {
+    problems += bad.length;
+    console.log("  FAIL  " + vp.name + " (" + vp.width + "px)");
+    for (const issue of bad) console.log("          " + issue);
+  } else {
+    console.log("  PASS  " + vp.name + " (" + vp.width + "px) — controls are reachable and labelled");
+  }
+  await page.close();
+}
+
 // ── Mobile navigation drawer ──────────────────────────────────
 console.log("\n  ── Mobile navigation ──");
 {
   const page = await browser.newPage();
   await page.setViewport({ width: 390, height: 844 });
   await page.goto(BASE + "/", { waitUntil: "domcontentloaded" });
-  await new Promise((r) => setTimeout(r, 400));
+  await page.waitForSelector('button[aria-label="Open menu"]', { visible: true, timeout: 10000 });
+  // The button is server-rendered before React attaches its event handler.
+  await new Promise((resolve) => setTimeout(resolve, 1000));
 
   const opener = await page.$('button[aria-label="Open menu"]');
   if (!opener) {
@@ -180,16 +257,18 @@ console.log("\n  ── Mobile navigation ──");
     console.log("  FAIL  menu button not found at 390px");
   } else {
     await opener.click();
-    await new Promise((r) => setTimeout(r, 600));
-    const closeVisible = await page.$('button[aria-label="Close menu"]');
+    await page.waitForSelector('aside[role="dialog"]', { visible: true, timeout: 10000 });
+    const closeVisible = await page.$('aside[role="dialog"] button[aria-label="Close menu"]');
     const locked = await page.evaluate(() => document.body.style.overflow === "hidden");
     console.log(`  ${closeVisible ? "PASS" : "FAIL"}  drawer opens`);
     console.log(`  ${locked ? "PASS" : "FAIL"}  body scroll locked while open`);
     if (!closeVisible || !locked) problems++;
 
     if (closeVisible) {
-      await closeVisible.click();
-      await new Promise((r) => setTimeout(r, 600));
+      // The drawer is still completing its spring transform, so use the
+      // verified control's native action rather than a coordinate click.
+      await closeVisible.evaluate((button) => button.click());
+      await page.waitForSelector('aside[role="dialog"]', { hidden: true, timeout: 10000 });
       const unlocked = await page.evaluate(() => document.body.style.overflow !== "hidden");
       console.log(`  ${unlocked ? "PASS" : "FAIL"}  scroll restored on close`);
       if (!unlocked) problems++;
