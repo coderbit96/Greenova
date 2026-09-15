@@ -55,6 +55,9 @@ export async function createPaymentOrder(
   if (String(booking.user) !== userId) {
     throw new BookingError(403, "You cannot pay for this booking.");
   }
+  if (booking.bookingSource === "ADMIN_MANUAL" && booking.paymentMethod !== "razorpay") {
+    throw new BookingError(400, "This is an offline booking. Please pay the hotel directly.");
+  }
   if (booking.payment.status === "paid") throw new BookingError(400, "Already paid.");
   if (booking.status === "cancelled") {
     throw new BookingError(400, "This booking was cancelled.");

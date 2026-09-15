@@ -18,6 +18,14 @@ export type PaymentLifecycleStatus =
   | "FAILED"
   | "REFUNDED"
   | "PARTIALLY_REFUNDED";
+export type BookingSource = "ONLINE" | "ADMIN_MANUAL";
+export type BookingPaymentMethod =
+  | "razorpay"
+  | "cash"
+  | "card_at_hotel"
+  | "bank_transfer"
+  | "other"
+  | "mock";
 
 export interface IBooking {
   _id: mongoose.Types.ObjectId;
@@ -56,7 +64,8 @@ export interface IBooking {
   additionalCharges: number;
   grandTotal: number;
   couponCode?: string;
-  paymentMethod: "razorpay" | "mock";
+  paymentMethod: BookingPaymentMethod;
+  bookingSource: BookingSource;
   paymentStatus: PaymentLifecycleStatus;
   razorpayOrderId?: string;
   razorpayPaymentId?: string;
@@ -120,7 +129,12 @@ const BookingSchema = new Schema<IBooking>(
     additionalCharges: { type: Number, required: true, min: 0, default: 0 },
     grandTotal: { type: Number, required: true, min: 0 },
     couponCode: { type: String, trim: true, uppercase: true, maxlength: 40 },
-    paymentMethod: { type: String, enum: ["razorpay", "mock"], default: "razorpay" },
+    paymentMethod: {
+      type: String,
+      enum: ["razorpay", "cash", "card_at_hotel", "bank_transfer", "other", "mock"],
+      default: "razorpay",
+    },
+    bookingSource: { type: String, enum: ["ONLINE", "ADMIN_MANUAL"], default: "ONLINE", index: true },
     paymentStatus: {
       type: String,
       enum: ["PENDING", "PAID", "FAILED", "REFUNDED", "PARTIALLY_REFUNDED"],
@@ -200,6 +214,7 @@ BookingSchema.pre("validate", function syncCanonicalBookingFields() {
   this.additionalCharges ??= 0;
   this.grandTotal ??= this.totalAmount;
   this.paymentMethod ??= this.payment?.provider ?? "razorpay";
+  this.bookingSource ??= "ONLINE";
   this.paymentStatus ??= legacyPaymentStatus[this.payment?.status ?? "pending"];
   this.bookingStatus ??= legacyBookingStatus[this.status ?? "pending"];
 });

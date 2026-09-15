@@ -219,6 +219,7 @@ export interface AdminOverview {
   roomPopularity: LabelledCount[];
   paymentStatus: LabelledCount[];
   bookingStatus: LabelledCount[];
+  bookingSource: LabelledCount[];
   recentBookings: PopulatedBookingDTO[];
 }
 
@@ -256,6 +257,7 @@ export async function getAdminOverview(days = 30): Promise<AdminOverview> {
     popularity,
     paymentSplit,
     statusSplit,
+    sourceSplit,
     recent,
   ] = await Promise.all([
     Booking.countDocuments({ createdAt: { $gte: today, $lt: tomorrow } }),
@@ -390,6 +392,10 @@ export async function getAdminOverview(days = 30): Promise<AdminOverview> {
       { $group: { _id: "$status", value: { $sum: 1 } } },
       { $sort: { value: -1 } },
     ]),
+    Booking.aggregate<{ _id: string; value: number }>([
+      { $group: { _id: { $ifNull: ["$bookingSource", "ONLINE"] }, value: { $sum: 1 } } },
+      { $sort: { value: -1 } },
+    ]),
 
     Booking.find({}).populate("room", "name slug").sort({ createdAt: -1 }).limit(8).lean(),
   ]);
@@ -439,6 +445,7 @@ export async function getAdminOverview(days = 30): Promise<AdminOverview> {
     roomPopularity: popularity.map((r) => ({ label: r._id, value: r.value })),
     paymentStatus: paymentSplit.map((r) => ({ label: titleCase(r._id), value: r.value })),
     bookingStatus: statusSplit.map((r) => ({ label: titleCase(r._id), value: r.value })),
+    bookingSource: sourceSplit.map((r) => ({ label: titleCase(r._id).replaceAll("_", " "), value: r.value })),
     recentBookings: serialize(recent) as unknown as PopulatedBookingDTO[],
   };
 }
@@ -548,4 +555,19 @@ export async function getOccupancyCalendar(days = 28): Promise<OccupancyCalendar
   }
 
   return { days: out, totalUnits: totalUnitsAgg[0]?.total ?? 0 };
+}
+
+/** Booking-level rows for the operational calendar, including cancelled and no-show history. */
+export async function getBookingCalendar(days = 28): Promise<PopulatedBookingDTO[]> {
+  await connectDB();
+  const from = todayUTC();
+  const to = new Date(from.getTime() + days * MS_PER_DAY);
+  const bookings = await Booking.find({
+    checkOut: { $gt: from },
+    checkIn: { $lt: to },
+  })
+    .populate("room", "name category units totalUnits")
+    .sort({ checkIn: 1, createdAt: -1 })
+    .lean();
+  return serialize(bookings) as unknown as PopulatedBookingDTO[];
 }

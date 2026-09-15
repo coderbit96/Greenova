@@ -77,6 +77,7 @@ export default function Navbar() {
   return (
     <>
       <header
+        data-site-nav
         className={cn(
           "fixed inset-x-0 top-0 z-50 transition-all duration-500",
           transparent ? "bg-transparent py-5" : "glass border-b border-border-base py-3 shadow-sm",

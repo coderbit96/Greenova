@@ -1,9 +1,11 @@
 import "server-only";
+import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/db";
 import User from "@/models/User";
+import Booking from "@/models/Booking";
 import { serialize } from "@/utils";
-import type { UserDTO } from "@/types/models";
+import type { PopulatedBookingDTO, UserDTO } from "@/types/models";
 import type { ProfileInput } from "@/validators/account";
 
 const BCRYPT_ROUNDS = 12;
@@ -191,6 +193,35 @@ export async function listCustomers(): Promise<CustomerRow[]> {
   ]);
 
   return serialize(rows) as unknown as CustomerRow[];
+}
+
+export async function getAdminCustomerDetail(id: string): Promise<{
+  user: UserDTO;
+  bookings: PopulatedBookingDTO[];
+  completedStays: number;
+  cancelledStays: number;
+  totalSpend: number;
+} | null> {
+  if (!mongoose.isValidObjectId(id)) return null;
+  await connectDB();
+  const [user, bookings] = await Promise.all([
+    User.findOne({ _id: id, role: "customer" }).lean(),
+    Booking.find({ user: id }).populate("room", "name category slug images").sort({ createdAt: -1 }).lean(),
+  ]);
+  if (!user) return null;
+
+  const completedStays = bookings.filter((booking) => booking.status === "completed").length;
+  const cancelledStays = bookings.filter((booking) => booking.status === "cancelled").length;
+  const totalSpend = bookings
+    .filter((booking) => booking.payment.status === "paid")
+    .reduce((sum, booking) => sum + booking.totalAmount, 0);
+  return {
+    user: serialize(user) as unknown as UserDTO,
+    bookings: serialize(bookings) as unknown as PopulatedBookingDTO[],
+    completedStays,
+    cancelledStays,
+    totalSpend,
+  };
 }
 
 /** Accounts holding the administrator role. */

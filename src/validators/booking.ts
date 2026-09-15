@@ -68,6 +68,21 @@ export const bookingSchema = guestSchema
   .strict()
   .superRefine(validateStayDates);
 
+/** Admin-only input for walk-ins, phone reservations, and offline payments. */
+export const manualBookingSchema = guestSchema
+  .extend({
+    roomId: z.string().min(1, "Room is required"),
+    checkIn: dateString,
+    checkOut: dateString,
+    adults: z.coerce.number().int().min(1).max(20),
+    children: z.coerce.number().int().min(0).max(20).default(0),
+    roomsBooked: z.coerce.number().int().min(1).max(10).default(1),
+    paymentMethod: z.enum(["razorpay", "cash", "card_at_hotel", "bank_transfer", "other"]),
+    paid: z.boolean().default(false),
+  })
+  .strict()
+  .superRefine(validateStayDates);
+
 export const cancelBookingSchema = z.object({
   reason: z.string().max(500).optional(),
 }).strict();
@@ -83,4 +98,5 @@ export const updateBookingSchema = z.object({
 export type AvailabilityInput = z.infer<typeof availabilitySchema>;
 export type GuestInput = z.infer<typeof guestSchema>;
 export type BookingInput = z.infer<typeof bookingSchema>;
+export type ManualBookingInput = z.infer<typeof manualBookingSchema>;
 export type UpdateBookingInput = z.infer<typeof updateBookingSchema>;

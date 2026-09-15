@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { listCustomers } from "@/services/user.service";
 import { formatCurrency, formatDate } from "@/utils";
@@ -48,7 +49,7 @@ export default async function CustomersPage() {
                 {customers.map((c) => (
                   <tr key={c._id} className="transition-colors hover:bg-bg-subtle">
                     <td className="px-6 py-4">
-                      <p className="font-medium text-fg">{c.name}</p>
+                      <Link href={`/admin/customers/${c._id}`} className="font-medium text-fg hover:underline">{c.name}</Link>
                       <p className="truncate text-xs text-fg-muted">{c.email}</p>
                     </td>
                     <td className="hidden px-6 py-4 whitespace-nowrap text-fg-muted md:table-cell">

@@ -55,7 +55,7 @@ export default async function Footer() {
   const email = hotel.email || "stay@greenova.com";
   const socialLinks = hotel.socialLinks ?? {};
   return (
-    <footer className="mt-auto border-t border-border-base bg-forest-950 text-forest-100">
+    <footer data-site-footer className="mt-auto border-t border-border-base bg-forest-950 text-forest-100">
       <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 lg:px-8">
         <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-4">
           <div className="lg:col-span-1">

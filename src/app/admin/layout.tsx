@@ -32,9 +32,8 @@ import AdminSignOut from "@/components/admin/AdminSignOut";
 /**
  * Admin navigation.
  *
- * `live` marks a section backed by a real MongoDB collection. The rest are
- * present so the navigation matches the specified structure, but they say
- * plainly that no data exists behind them rather than showing invented rows.
+ * Every destination is backed by the booking, content, settings or review
+ * records already used elsewhere in the application.
  */
 const SECTIONS = [
   {
@@ -55,7 +54,7 @@ const SECTIONS = [
       { href: "/admin/payments", label: "Payments", Icon: CreditCard, live: true },
       { href: "/admin/refunds", label: "Refunds", Icon: RotateCcw, live: true },
       { href: "/admin/coupons", label: "Coupons", Icon: Ticket, live: true },
-      { href: "/admin/offers", label: "Offers", Icon: Tag, live: false },
+      { href: "/admin/offers", label: "Offers", Icon: Tag, live: true },
     ],
   },
   {
@@ -65,8 +64,8 @@ const SECTIONS = [
       { href: "/admin/gallery", label: "Gallery", Icon: Images, live: true },
       { href: "/admin/amenities", label: "Amenities", Icon: Sparkles, live: true },
       { href: "/admin/dining", label: "Dining", Icon: UtensilsCrossed, live: true },
-      { href: "/admin/testimonials", label: "Testimonials", Icon: Quote, live: false },
-      { href: "/admin/website-content", label: "Website Content", Icon: FileText, live: false },
+      { href: "/admin/testimonials", label: "Testimonials", Icon: Quote, live: true },
+      { href: "/admin/website-content", label: "Website Content", Icon: FileText, live: true },
     ],
   },
   {
@@ -94,7 +93,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   if (session.user.role !== "admin") redirect("/unauthorized");
 
   return (
-    <div className="pt-24 pb-24 lg:pt-28">
+    <div id="admin-shell" className="py-8 pb-16 lg:py-10 lg:pb-20">
       <div className="mx-auto max-w-[90rem] px-4 sm:px-6 lg:px-8">
         <div className="grid gap-8 lg:grid-cols-[240px_1fr] lg:gap-10">
           <aside className="lg:sticky lg:top-24 lg:self-start">

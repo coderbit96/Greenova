@@ -24,6 +24,14 @@ export type PaymentLifecycleStatus =
   | "FAILED"
   | "REFUNDED"
   | "PARTIALLY_REFUNDED";
+export type BookingSource = "ONLINE" | "ADMIN_MANUAL";
+export type BookingPaymentMethod =
+  | "razorpay"
+  | "cash"
+  | "card_at_hotel"
+  | "bank_transfer"
+  | "other"
+  | "mock";
 export type UserRole = "customer" | "admin";
 export type ReviewStatus = "PENDING" | "APPROVED" | "REJECTED" | "HIDDEN";
 
@@ -145,7 +153,8 @@ export interface BookingDTO {
   additionalCharges: number;
   grandTotal: number;
   couponCode?: string;
-  paymentMethod: "razorpay" | "mock";
+  paymentMethod: BookingPaymentMethod;
+  bookingSource: BookingSource;
   paymentStatus: PaymentLifecycleStatus;
   razorpayOrderId?: string;
   razorpayPaymentId?: string;

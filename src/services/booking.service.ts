@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { connectDB } from "@/lib/db";
 import Booking from "@/models/Booking";
 import Room from "@/models/Room";
+import User from "@/models/User";
 import "@/models/User"; // register the schema for populate()
 import { getRoomAvailability } from "@/services/availability.service";
 import { refundPayment } from "@/lib/razorpay";
@@ -16,7 +17,7 @@ import {
   todayUTC,
 } from "@/utils";
 import type { BookingDTO, BookingStatus, PopulatedBookingDTO } from "@/types/models";
-import type { BookingInput, UpdateBookingInput } from "@/validators/booking";
+import type { BookingInput, ManualBookingInput, UpdateBookingInput } from "@/validators/booking";
 
 /** Domain error carrying the HTTP status the API layer should surface. */
 export class BookingError extends Error {
@@ -232,6 +233,80 @@ export async function createBooking(
 
     return serialize(booking.toObject()) as unknown as BookingDTO;
   });
+}
+
+/**
+ * Creates an administrator-entered reservation for a walk-in, telephone, or
+ * corporate guest. Amounts and inventory still flow through `createBooking`,
+ * so an admin browser can never force a price or oversell a room.
+ */
+export async function createManualBooking(
+  adminId: string,
+  data: ManualBookingInput,
+): Promise<BookingDTO> {
+  await connectDB();
+
+  const email = data.guestEmail.trim().toLowerCase();
+  let guest = await User.findOne({ email });
+  if (!guest) {
+    // A contact-only customer can later claim the account through ordinary
+    // registration. No password is generated or exposed to the admin.
+    guest = await User.create({
+      name: data.guestName.trim(),
+      email,
+      phone: data.guestPhone,
+      provider: "credentials",
+      role: "customer",
+    });
+  }
+
+  const created = await createBooking(String(guest._id), {
+    roomId: data.roomId,
+    checkIn: data.checkIn,
+    checkOut: data.checkOut,
+    adults: data.adults,
+    children: data.children,
+    roomsBooked: data.roomsBooked,
+    guestName: data.guestName,
+    guestEmail: email,
+    guestPhone: data.guestPhone,
+    guestAddress: data.guestAddress,
+    specialRequests: data.specialRequests,
+  });
+
+  const booking = await Booking.findById(created._id);
+  if (!booking) throw new BookingError(500, "Could not create the booking.");
+
+  booking.bookingSource = "ADMIN_MANUAL";
+  booking.paymentMethod = data.paymentMethod;
+  // Offline payments do not have a Razorpay order. `mock` here means no
+  // gateway transaction exists; the canonical payment method preserves the
+  // actual collection method for staff and reports.
+  booking.payment.provider = "mock";
+  booking.status = "confirmed";
+  booking.bookingStatus = "CONFIRMED";
+  booking.paymentHoldExpiresAt = undefined;
+
+  // A Razorpay record may only become paid through signature/webhook
+  // verification; the manual workflow is for offline payment collection.
+  if (data.paid && data.paymentMethod !== "razorpay") {
+    booking.payment.status = "paid";
+    booking.paymentStatus = "PAID";
+    booking.payment.paidAt = new Date();
+  } else {
+    booking.payment.status = "pending";
+    booking.paymentStatus = "PENDING";
+  }
+
+  if (mongoose.isValidObjectId(adminId)) {
+    booking.internalNotes.push({
+      text: `Manual booking created (${data.paymentMethod.replaceAll("_", " ")}).`,
+      author: new mongoose.Types.ObjectId(adminId),
+      createdAt: new Date(),
+    });
+  }
+  await booking.save();
+  return serialize(booking.toObject()) as unknown as BookingDTO;
 }
 
 /**

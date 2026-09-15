@@ -1,6 +1,7 @@
 "use client";
 
-import { forwardRef, useId } from "react";
+import { Eye, EyeOff } from "lucide-react";
+import { forwardRef, useId, useState } from "react";
 import { cn } from "@/utils";
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
@@ -13,12 +14,14 @@ const fieldBase =
   "w-full rounded-xl border bg-bg-elevated px-4 py-3 text-sm text-fg placeholder:text-fg-muted/60 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-forest-500/40 focus:border-forest-500 disabled:opacity-60";
 
 const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
-  { label, error, hint, className, id, ...props },
+  { label, error, hint, className, id, type, ...props },
   ref,
 ) {
   const generated = useId();
   const inputId = id ?? generated;
   const describedBy = error ? `${inputId}-err` : hint ? `${inputId}-hint` : undefined;
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const isPassword = type === "password";
 
   return (
     <div className="w-full">
@@ -27,14 +30,40 @@ const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
           {label}
         </label>
       )}
-      <input
-        ref={ref}
-        id={inputId}
-        aria-invalid={!!error}
-        aria-describedby={describedBy}
-        className={cn(fieldBase, error && "border-red-500 focus:ring-red-500/30", className)}
-        {...props}
-      />
+      <div className="relative">
+        <input
+          ref={ref}
+          id={inputId}
+          type={isPassword && isPasswordVisible ? "text" : type}
+          aria-invalid={!!error}
+          aria-describedby={describedBy}
+          className={cn(
+            fieldBase,
+            isPassword && "pr-12",
+            error && "border-red-500 focus:ring-red-500/30",
+            className,
+          )}
+          {...props}
+        />
+        {isPassword && (
+          <button
+            type="button"
+            aria-controls={inputId}
+            aria-label={isPasswordVisible ? "Hide password" : "Show password"}
+            aria-pressed={isPasswordVisible}
+            title={isPasswordVisible ? "Hide password" : "Show password"}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => setIsPasswordVisible((visible) => !visible)}
+            className="absolute inset-y-0 right-0 grid w-11 place-items-center rounded-r-xl text-fg-muted transition-colors hover:text-forest-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-forest-500 focus-visible:ring-inset dark:hover:text-forest-300"
+          >
+            {isPasswordVisible ? (
+              <EyeOff className="size-4" aria-hidden="true" />
+            ) : (
+              <Eye className="size-4" aria-hidden="true" />
+            )}
+          </button>
+        )}
+      </div>
       {error ? (
         <p id={`${inputId}-err`} role="alert" className="mt-1.5 text-xs text-red-600 dark:text-red-400">
           {error}

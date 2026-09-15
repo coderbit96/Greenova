@@ -10,13 +10,18 @@ import Badge, { statusTone } from "@/components/ui/Badge";
 import { formatCurrency, formatDate } from "@/utils";
 import { updateBookingAction } from "@/actions/admin.actions";
 import type { PopulatedBookingDTO } from "@/types/models";
+import AdminManualBooking from "@/components/admin/AdminManualBooking";
 
 const STATUSES = ["all", "pending", "confirmed", "completed", "cancelled"] as const;
+const PAYMENT_STATUSES = ["all", "pending", "paid", "failed", "refunded"] as const;
 type PendingConfirmation = { title: string; description: string; confirmLabel: string; action: () => void };
 
-export default function AdminBookings({ initialBookings }: { initialBookings: PopulatedBookingDTO[] }) {
+export default function AdminBookings({ initialBookings, rooms }: { initialBookings: PopulatedBookingDTO[]; rooms: { _id: string; name: string; category: string }[] }) {
   const router = useRouter();
   const [status, setStatus] = useState<(typeof STATUSES)[number]>("all");
+  const [paymentStatus, setPaymentStatus] = useState<(typeof PAYMENT_STATUSES)[number]>("all");
+  const [roomFilter, setRoomFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("");
   const [q, setQ] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -26,6 +31,9 @@ export default function AdminBookings({ initialBookings }: { initialBookings: Po
     const term = q.trim().toLowerCase();
     return initialBookings.filter((b) => {
       if (status !== "all" && b.status !== status) return false;
+      if (paymentStatus !== "all" && b.payment.status !== paymentStatus) return false;
+      if (roomFilter !== "all" && b.room?._id !== roomFilter) return false;
+      if (dateFilter && !(b.checkIn.slice(0, 10) <= dateFilter && b.checkOut.slice(0, 10) > dateFilter)) return false;
       if (!term) return true;
       return (
         b.reference.toLowerCase().includes(term) ||
@@ -33,7 +41,7 @@ export default function AdminBookings({ initialBookings }: { initialBookings: Po
         b.guest.email.toLowerCase().includes(term)
       );
     });
-  }, [initialBookings, status, q]);
+  }, [initialBookings, status, paymentStatus, roomFilter, dateFilter, q]);
 
   async function update(id: string, body: Record<string, unknown>, successMsg: string) {
     setBusy(id);
@@ -58,6 +66,9 @@ export default function AdminBookings({ initialBookings }: { initialBookings: Po
       </p>
 
       {/* Filters — one row above the table */}
+      <div className="mt-3 flex justify-end">
+        <AdminManualBooking rooms={rooms} today={new Date().toISOString().slice(0, 10)} />
+      </div>
       <div className="mt-8 flex flex-wrap gap-3">
         <div className="relative min-w-56 flex-1">
           <Search className="absolute top-1/2 left-4 size-4 -translate-y-1/2 text-fg-muted" />
@@ -84,6 +95,14 @@ export default function AdminBookings({ initialBookings }: { initialBookings: Po
             </button>
           ))}
         </div>
+        <select value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value as typeof paymentStatus)} aria-label="Filter by payment status" className="rounded-full border border-border-base bg-bg-elevated px-4 py-2 text-sm">
+          {PAYMENT_STATUSES.map((value) => <option key={value} value={value}>{value === "all" ? "All payments" : `Payment: ${value}`}</option>)}
+        </select>
+        <select value={roomFilter} onChange={(event) => setRoomFilter(event.target.value)} aria-label="Filter by room" className="rounded-full border border-border-base bg-bg-elevated px-4 py-2 text-sm">
+          <option value="all">All rooms</option>
+          {rooms.map((room) => <option key={room._id} value={room._id}>{room.name}</option>)}
+        </select>
+        <label className="flex items-center gap-2 rounded-full border border-border-base bg-bg-elevated px-4 py-2 text-sm">Stay date<input value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} type="date" aria-label="Filter by stay date" className="bg-transparent outline-none" /></label>
       </div>
 
       {filtered.length === 0 ? (
@@ -130,6 +149,7 @@ export default function AdminBookings({ initialBookings }: { initialBookings: Po
                         <div className="flex flex-col gap-1">
                           <Badge tone={statusTone(b.status)}>{b.status}</Badge>
                           <Badge tone={statusTone(b.payment.status)}>{b.payment.status}</Badge>
+                          {b.bookingSource === "ADMIN_MANUAL" && <Badge tone="info">Manual</Badge>}
                         </div>
                       </td>
                       <td className="px-5 py-4 text-right font-medium whitespace-nowrap">
@@ -153,17 +173,20 @@ export default function AdminBookings({ initialBookings }: { initialBookings: Po
                               <Check className="size-4" />
                             </Button>
                           )}
-                          {b.status === "confirmed" && (
+                          {b.bookingStatus === "CONFIRMED" && (
                             <Button
                               size="sm"
                               variant="ghost"
                               disabled={busy === b._id}
                               onClick={() =>
-                                update(b._id, { status: "completed" }, "Marked as completed.")
+                                update(b._id, { bookingStatus: "CHECKED_IN" }, "Guest checked in.")
                               }
                             >
-                              Complete
+                              Check in
                             </Button>
+                          )}
+                          {b.bookingStatus === "CHECKED_IN" && (
+                            <Button size="sm" variant="ghost" disabled={busy === b._id} onClick={() => update(b._id, { bookingStatus: "CHECKED_OUT" }, "Guest checked out.")}>Check out</Button>
                           )}
                           {b.payment.status === "paid" && (
                             <Button
@@ -198,6 +221,9 @@ export default function AdminBookings({ initialBookings }: { initialBookings: Po
                               <X className="size-4" />
                             </Button>
                           )}
+                          {b.status === "confirmed" && b.bookingStatus !== "CHECKED_IN" && (
+                            <Button size="sm" variant="ghost" disabled={busy === b._id} onClick={() => setConfirmation({ title: "Mark as no-show?", description: `${b.reference} will be closed as a no-show and inventory released.`, confirmLabel: "Mark no-show", action: () => update(b._id, { bookingStatus: "NO_SHOW" }, "Booking marked as no-show.") })} aria-label="Mark no-show">No-show</Button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -211,7 +237,7 @@ export default function AdminBookings({ initialBookings }: { initialBookings: Po
                               label="Guests"
                               value={`${b.guests.adults} adults, ${b.guests.children} children`}
                             />
-                            <Detail label="Payment via" value={b.payment.provider} />
+                            <Detail label="Payment via" value={b.paymentMethod.replaceAll("_", " ")} />
                             <Detail label="Booked on" value={formatDate(b.createdAt)} />
                             {b.specialRequests && (
                               <div className="sm:col-span-2 lg:col-span-4">
@@ -222,6 +248,21 @@ export default function AdminBookings({ initialBookings }: { initialBookings: Po
                               </div>
                             )}
                           </dl>
+                          <form
+                            className="mt-5 flex flex-wrap gap-2 border-t border-border-base pt-4"
+                            onSubmit={(event) => {
+                              event.preventDefault();
+                              const note = new FormData(event.currentTarget).get("note");
+                              if (typeof note === "string" && note.trim()) {
+                                void update(b._id, { internalNote: note.trim() }, "Internal note added.");
+                                event.currentTarget.reset();
+                              }
+                            }}
+                          >
+                            <label className="sr-only" htmlFor={`note-${b._id}`}>Add internal note</label>
+                            <input id={`note-${b._id}`} name="note" maxLength={1000} placeholder="Add internal note" className="min-w-52 flex-1 rounded-xl border border-border-base bg-bg-elevated px-3 py-2 text-sm" />
+                            <Button size="sm" type="submit" disabled={busy === b._id}>Add note</Button>
+                          </form>
                         </td>
                       </tr>
                     )}

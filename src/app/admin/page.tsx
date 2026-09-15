@@ -34,7 +34,7 @@ export default async function AdminOverviewPage() {
   // parallel, so a layout redirect cannot stop this page's queries.
   const session = await auth();
   if (!session?.user) redirect("/login?callbackUrl=/admin");
-  if (session.user.role !== "admin") redirect("/");
+  if (session.user.role !== "admin") redirect("/unauthorized");
 
   const {
     metrics,
@@ -44,6 +44,7 @@ export default async function AdminOverviewPage() {
     roomPopularity,
     paymentStatus,
     bookingStatus,
+    bookingSource,
     recentBookings,
   } = await getAdminOverview();
 
@@ -199,6 +200,10 @@ export default async function AdminOverviewPage() {
 
         <Panel title="Booking status" subtitle="Every booking by lifecycle state">
           <BreakdownChart data={bookingStatus} tone="status" />
+        </Panel>
+
+        <Panel title="Booking source" subtitle="Online versus administrator-entered stays">
+          <BreakdownChart data={bookingSource} />
         </Panel>
       </div>
 

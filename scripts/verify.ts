@@ -35,7 +35,7 @@ async function main() {
   const { getRoomAvailability, findAvailableRooms, getBlockedDates } = await import(
     "../src/services/availability.service"
   );
-  const { createBooking } = await import("../src/services/booking.service");
+  const { createBooking, createManualBooking } = await import("../src/services/booking.service");
   const { applyWebhookEvent } = await import("../src/services/payment.service");
   const { reserveCoupon } = await import("../src/services/coupon.service");
   const { submitReview, moderateReview, listApprovedReviews, deleteReview } = await import(
@@ -230,6 +230,26 @@ async function main() {
     "inventory never goes negative under contention",
     await Booking.countDocuments({ room: lastUnit._id, checkIn: day(75), checkOut: day(77) }),
     1,
+  );
+
+  console.log("\n  Manual bookings");
+  const manual = await createManualBooking(String(user._id), {
+    roomId: String(room._id),
+    checkIn: day(110).toISOString().slice(0, 10),
+    checkOut: day(112).toISOString().slice(0, 10),
+    adults: 2,
+    children: 0,
+    roomsBooked: 1,
+    guestName: "Walk-in Guest",
+    guestEmail: "walkin@example.com",
+    guestPhone: "+911234567890",
+    paymentMethod: "cash",
+    paid: true,
+  });
+  check(
+    "manual offline booking is distinguishable and can be recorded paid",
+    [manual.bookingSource, manual.paymentMethod, manual.bookingStatus, manual.paymentStatus],
+    ["ADMIN_MANUAL", "cash", "CONFIRMED", "PAID"],
   );
 
   console.log("\n  ── API payload ownership ──");
