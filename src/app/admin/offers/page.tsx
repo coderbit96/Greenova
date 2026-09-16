@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { Ticket } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { listCoupons } from "@/services/coupon.service";
-import { formatCurrency } from "@/utils";
+import { formatCurrency, formatDate } from "@/utils";
 import Badge from "@/components/ui/Badge";
 
 export const metadata: Metadata = {
@@ -24,9 +24,9 @@ export default async function OffersPage() {
   if (session.user.role !== "admin") redirect("/unauthorized");
 
   const coupons = await listCoupons();
-  const now = new Date().toISOString().slice(0, 10);
+  const now = new Date();
   const liveOffers = coupons.filter(
-    (coupon) => coupon.active && coupon.startDate.slice(0, 10) <= now && coupon.expiryDate.slice(0, 10) >= now,
+    (coupon) => coupon.active && coupon.startDate <= now && coupon.expiryDate >= now,
   );
 
   return (
@@ -57,7 +57,7 @@ export default async function OffersPage() {
       ) : (
         <ul className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {liveOffers.map((offer) => (
-            <li key={offer._id} className="rounded-3xl border border-border-base bg-bg-elevated p-6">
+            <li key={String(offer._id)} className="rounded-3xl border border-border-base bg-bg-elevated p-6">
               <div className="flex items-start justify-between gap-3">
                 <p className="font-mono text-lg font-semibold tracking-wide text-forest-700 dark:text-forest-300">
                   {offer.code}
@@ -68,12 +68,12 @@ export default async function OffersPage() {
                 {offer.type === "PERCENTAGE" ? `${offer.value}% off` : `${formatCurrency(offer.value)} off`}
               </p>
               <p className="mt-2 text-sm text-fg-muted">
-                {offer.minimumBookingAmount > 0
-                  ? `On stays from ${formatCurrency(offer.minimumBookingAmount)}`
+                {(offer.minimumBookingAmount ?? 0) > 0
+                  ? `On stays from ${formatCurrency(offer.minimumBookingAmount ?? 0)}`
                   : "No minimum stay value"}
               </p>
               <p className="mt-4 text-xs text-fg-muted">
-                Valid through {offer.expiryDate.slice(0, 10)} · {offer.usageCount}
+                Valid through {formatDate(offer.expiryDate)} · {offer.usageCount}
                 {offer.usageLimit ? `/${offer.usageLimit}` : ""} redemptions
               </p>
             </li>
