@@ -7,12 +7,13 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { signIn } from "next-auth/react";
 import { toast } from "sonner";
+import { signInWithEmailAndPassword, signOut as signOutOfFirebase } from "firebase/auth";
 import { loginSchema, type LoginInput } from "@/validators";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import AuthShell from "@/components/auth/AuthShell";
-import GoogleButton from "@/components/auth/GoogleButton";
 import { safeInternalPath } from "@/lib/redirects";
+import { getFirebaseAuth } from "@/lib/firebase/client";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -32,10 +33,20 @@ export default function LoginForm() {
   async function onSubmit(values: LoginInput) {
     setSubmitting(true);
     try {
-      const res = await signIn("credentials", {
-        ...values,
-        redirect: false,
-      });
+      const firebaseAuth = getFirebaseAuth();
+      const res = firebaseAuth
+        ? await (async () => {
+            const credential = await signInWithEmailAndPassword(
+              firebaseAuth,
+              values.email,
+              values.password,
+            );
+            const idToken = await credential.user.getIdToken();
+            const result = await signIn("firebase", { idToken, redirect: false });
+            if (result?.error) await signOutOfFirebase(firebaseAuth);
+            return result;
+          })()
+        : await signIn("credentials", { ...values, redirect: false });
 
       if (res?.error) {
         toast.error("Those details do not match an account.");
@@ -68,14 +79,6 @@ export default function LoginForm() {
         </>
       }
     >
-      <GoogleButton callbackUrl={callbackUrl} />
-
-      <div className="my-6 flex items-center gap-4">
-        <span className="h-px flex-1 bg-border-base" />
-        <span className="text-xs tracking-wider text-fg-muted uppercase">or</span>
-        <span className="h-px flex-1 bg-border-base" />
-      </div>
-
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         <Input
           label="Email"

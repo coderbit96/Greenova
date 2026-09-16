@@ -184,7 +184,9 @@ export interface UserDTO {
   image?: string;
   phone?: string;
   role: UserRole;
-  provider: "credentials" | "google";
+  provider: "credentials" | "google" | "firebase";
+  /** Present when this account is linked to a Firebase identity. */
+  firebaseUid?: string;
   createdAt: string;
   updatedAt: string;
 }

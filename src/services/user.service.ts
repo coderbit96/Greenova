@@ -64,31 +64,62 @@ export async function verifyCredentials(email: string, password: string) {
   };
 }
 
-/** Creates or updates the local record backing a Google sign-in. */
-export async function upsertOAuthUser(profile: {
+/**
+ * Resolves a Firebase identity to the local booking account. The UID comes
+ * only from a Firebase Admin-verified token; the browser never chooses it.
+ */
+export async function upsertFirebaseUser(profile: {
+  uid: string;
   email: string;
   name?: string | null;
   image?: string | null;
-}): Promise<void> {
+  emailVerified: boolean;
+}) {
   await connectDB();
 
-  const existing = await User.findOne({ email: profile.email });
+  const email = profile.email.trim().toLowerCase();
+  const existing = await User.findOne({ email });
   if (existing) {
-    if (!existing.image && profile.image) {
-      existing.image = profile.image;
-      await existing.save();
+    if (existing.firebaseUid && existing.firebaseUid !== profile.uid) {
+      throw new UserError(409, "This email is already linked to a different account.");
     }
-    return;
+    // Do not let an unverified Firebase address claim a pre-existing local
+    // account that happens to use the same email address.
+    if (!existing.firebaseUid && !profile.emailVerified) {
+      throw new UserError(409, "Verify this email address before linking your account.");
+    }
+
+    existing.firebaseUid = profile.uid;
+    if (!existing.image && profile.image) existing.image = profile.image;
+    if (!existing.emailVerified && profile.emailVerified) existing.emailVerified = new Date();
+    await existing.save();
+
+    return {
+      id: String(existing._id),
+      name: existing.name,
+      email: existing.email,
+      image: existing.image,
+      role: existing.role,
+    };
   }
 
-  await User.create({
-    name: profile.name ?? profile.email.split("@")[0],
-    email: profile.email,
+  const user = await User.create({
+    name: profile.name?.trim() || email.split("@")[0],
+    email,
     image: profile.image ?? undefined,
-    provider: "google",
+    provider: "firebase",
+    firebaseUid: profile.uid,
     role: "customer",
-    emailVerified: new Date(),
+    emailVerified: profile.emailVerified ? new Date() : null,
   });
+
+  return {
+    id: String(user._id),
+    name: user.name,
+    email: user.email,
+    image: user.image,
+    role: user.role,
+  };
 }
 
 export async function getUserByEmail(email: string) {
@@ -109,8 +140,8 @@ export async function updateUserProfile(userId: string, input: ProfileInput): Pr
   if (!user) throw new UserError(404, "Account not found.");
 
   if (user.email !== input.email) {
-    if (user.provider === "google") {
-      throw new UserError(400, "Your email address is managed by your Google account.");
+    if (user.provider !== "credentials" || user.firebaseUid) {
+      throw new UserError(400, "Your email address is managed by your sign-in provider.");
     }
     const emailInUse = await User.exists({ email: input.email, _id: { $ne: user._id } });
     if (emailInUse) throw new UserError(409, "An account with this email already exists.");
@@ -132,7 +163,7 @@ export interface CustomerRow {
   _id: string;
   name: string;
   email: string;
-  provider: "credentials" | "google";
+  provider: "credentials" | "google" | "firebase";
   createdAt: string;
   /** Bookings that were not cancelled. */
   bookingCount: number;

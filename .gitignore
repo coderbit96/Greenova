@@ -5,6 +5,8 @@ out
 build
 .env*
 !.env.example
+*-firebase-adminsdk-*.json
+service-account*.json
 *.tsbuildinfo
 next-env.d.ts
 .DS_Store

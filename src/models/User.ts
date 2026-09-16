@@ -8,7 +8,8 @@ export interface IUser {
   image?: string;
   phone?: string;
   role: "customer" | "admin";
-  provider: "credentials" | "google";
+  provider: "credentials" | "google" | "firebase";
+  firebaseUid?: string;
   emailVerified?: Date | null;
   createdAt: Date;
   updatedAt: Date;
@@ -31,7 +32,8 @@ const UserSchema = new Schema<IUser>(
     image: { type: String },
     phone: { type: String, trim: true },
     role: { type: String, enum: ["customer", "admin"], default: "customer", index: true },
-    provider: { type: String, enum: ["credentials", "google"], default: "credentials" },
+    provider: { type: String, enum: ["credentials", "google", "firebase"], default: "credentials" },
+    firebaseUid: { type: String, unique: true, sparse: true, index: true },
     emailVerified: { type: Date, default: null },
   },
   { timestamps: true },

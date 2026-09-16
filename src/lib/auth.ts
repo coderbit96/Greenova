@@ -1,20 +1,14 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import Google from "next-auth/providers/google";
 import { loginSchema } from "@/validators/auth";
 import { allowRateLimited, clientAddress } from "@/lib/rate-limit";
+import { verifyFirebaseIdToken } from "@/lib/firebase/admin";
 import {
   getUserByEmail,
   getUserById,
-  upsertOAuthUser,
+  upsertFirebaseUser,
   verifyCredentials,
 } from "@/services/user.service";
-
-// Support the conventional Google variable names while retaining the previous
-// Auth.js aliases for existing deployments.
-const googleClientId = process.env.GOOGLE_CLIENT_ID ?? process.env.AUTH_GOOGLE_ID;
-const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET ?? process.env.AUTH_GOOGLE_SECRET;
-const googleEnabled = Boolean(googleClientId && googleClientSecret);
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   session: { strategy: "jwt", maxAge: 30 * 24 * 60 * 60 },
@@ -25,14 +19,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   pages: { signIn: "/login", error: "/login" },
   trustHost: true,
   providers: [
-    ...(googleEnabled
-      ? [
-          Google({
-            clientId: googleClientId!,
-            clientSecret: googleClientSecret!,
-          }),
-        ]
-      : []),
     Credentials({
       name: "credentials",
       credentials: {
@@ -53,6 +39,39 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return verifyCredentials(parsed.data.email, parsed.data.password);
       },
     }),
+    Credentials({
+      id: "firebase",
+      name: "Firebase",
+      credentials: {
+        idToken: { label: "Firebase ID token", type: "text" },
+      },
+      async authorize(raw, request) {
+        const idToken = typeof raw?.idToken === "string" ? raw.idToken : "";
+        const throttle = allowRateLimited(
+          `auth:firebase:${clientAddress(request.headers)}`,
+          30,
+          15 * 60 * 1_000,
+        );
+        if (!throttle.allowed) return null;
+
+        const decoded = await verifyFirebaseIdToken(idToken);
+        if (!decoded?.uid || !decoded.email) return null;
+
+        try {
+          return await upsertFirebaseUser({
+            uid: decoded.uid,
+            email: decoded.email,
+            name: typeof decoded.name === "string" ? decoded.name : null,
+            image: typeof decoded.picture === "string" ? decoded.picture : null,
+            emailVerified: decoded.email_verified === true,
+          });
+        } catch {
+          // Credentials providers should return null for a failed identity
+          // link, never disclose account-linking details to an attacker.
+          return null;
+        }
+      },
+    }),
   ],
   callbacks: {
     redirect({ url, baseUrl }) {
@@ -63,17 +82,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         return baseUrl;
       }
     },
-    async signIn({ user, account }) {
-      if (account?.provider !== "google") return true;
-
-      // Upsert a local record for Google users so bookings can reference them.
-      const email = user.email?.toLowerCase();
-      if (!email) return false;
-
-      await upsertOAuthUser({ email, name: user.name, image: user.image });
-      return true;
-    },
-
     async jwt({ token, user, trigger }) {
       // On sign-in, or when the client calls update(), resync from the DB
       // so a role change takes effect without forcing a re-login.

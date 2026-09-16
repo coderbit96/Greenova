@@ -65,6 +65,11 @@ export default function ProfileForm({ user }: { user: UserDTO }) {
     }
   }
 
+  // A credentials account can later be securely linked to Firebase. Its
+  // Firebase email is then authoritative too, even though its original
+  // provider remains "credentials" so password sign-in continues to work.
+  const emailManagedExternally = user.provider !== "credentials" || Boolean(user.firebaseUid);
+
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="grid gap-5 sm:grid-cols-2" noValidate>
       <Input
@@ -77,8 +82,8 @@ export default function ProfileForm({ user }: { user: UserDTO }) {
         label="Email address"
         type="email"
         autoComplete="email"
-        readOnly={user.provider === "google"}
-        hint={user.provider === "google" ? "Managed by your Google account." : undefined}
+        readOnly={emailManagedExternally}
+        hint={emailManagedExternally ? "Managed by your sign-in provider." : undefined}
         error={errors.email?.message}
         {...register("email")}
       />

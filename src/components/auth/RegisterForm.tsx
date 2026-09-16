@@ -8,13 +8,19 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { signIn } from "next-auth/react";
 import { toast } from "sonner";
 import { Check } from "lucide-react";
+import {
+  createUserWithEmailAndPassword,
+  sendEmailVerification,
+  signOut as signOutOfFirebase,
+  updateProfile,
+} from "firebase/auth";
 import { registerSchema, type RegisterInput } from "@/validators/auth";
 import { registerAction } from "@/actions/auth.actions";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import AuthShell from "@/components/auth/AuthShell";
-import GoogleButton from "@/components/auth/GoogleButton";
 import { safeInternalPath } from "@/lib/redirects";
+import { getFirebaseAuth } from "@/lib/firebase/client";
 
 const rules = [
   { test: (v: string) => v.length >= 8, label: "8+ characters" },
@@ -46,6 +52,32 @@ export default function RegisterForm() {
   async function onSubmit(values: RegisterInput) {
     setSubmitting(true);
     try {
+      const firebaseAuth = getFirebaseAuth();
+      if (firebaseAuth) {
+        const credential = await createUserWithEmailAndPassword(
+          firebaseAuth,
+          values.email,
+          values.password,
+        );
+        await updateProfile(credential.user, { displayName: values.name });
+        // Verification is a Firebase concern; a temporary delivery failure
+        // must not strand an otherwise valid account creation.
+        await sendEmailVerification(credential.user).catch(() => undefined);
+
+        const idToken = await credential.user.getIdToken(true);
+        const signInRes = await signIn("firebase", { idToken, redirect: false });
+        if (signInRes?.error) {
+          await signOutOfFirebase(firebaseAuth);
+          toast.error("We could not finish setting up your account. Please sign in again.");
+          return;
+        }
+
+        toast.success("Welcome to Greenova. Please verify your email address.");
+        router.push(callbackUrl);
+        router.refresh();
+        return;
+      }
+
       const created = await registerAction(values);
 
       if (!created.ok) {
@@ -95,14 +127,6 @@ export default function RegisterForm() {
         </>
       }
     >
-      <GoogleButton callbackUrl={callbackUrl} />
-
-      <div className="my-6 flex items-center gap-4">
-        <span className="h-px flex-1 bg-border-base" />
-        <span className="text-xs tracking-wider text-fg-muted uppercase">or</span>
-        <span className="h-px flex-1 bg-border-base" />
-      </div>
-
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         <Input
           label="Full name"

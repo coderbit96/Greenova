@@ -26,7 +26,7 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
     ],
   },
-  serverExternalPackages: ["mongoose", "razorpay", "bcryptjs"],
+  serverExternalPackages: ["mongoose", "razorpay", "bcryptjs", "firebase-admin"],
 };
 
 export default nextConfig;
