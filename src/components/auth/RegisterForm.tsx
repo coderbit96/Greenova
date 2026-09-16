@@ -21,6 +21,7 @@ import Input from "@/components/ui/Input";
 import AuthShell from "@/components/auth/AuthShell";
 import { safeInternalPath } from "@/lib/redirects";
 import { getFirebaseAuth } from "@/lib/firebase/client";
+import { firebaseAuthErrorMessage } from "@/lib/firebase/errors";
 
 const rules = [
   { test: (v: string) => v.length >= 8, label: "8+ characters" },
@@ -104,8 +105,8 @@ export default function RegisterForm() {
       toast.success("Welcome to Greenova.");
       router.push(callbackUrl);
       router.refresh();
-    } catch {
-      toast.error("Something went wrong. Please try again.");
+    } catch (error) {
+      toast.error(firebaseAuthErrorMessage(error));
     } finally {
       setSubmitting(false);
     }

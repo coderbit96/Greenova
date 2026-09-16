@@ -14,6 +14,7 @@ import Input from "@/components/ui/Input";
 import AuthShell from "@/components/auth/AuthShell";
 import { safeInternalPath } from "@/lib/redirects";
 import { getFirebaseAuth } from "@/lib/firebase/client";
+import { firebaseAuthErrorMessage } from "@/lib/firebase/errors";
 
 export default function LoginForm() {
   const router = useRouter();
@@ -56,8 +57,8 @@ export default function LoginForm() {
       toast.success("Welcome back.");
       router.push(callbackUrl);
       router.refresh();
-    } catch {
-      toast.error("Could not sign you in. Please try again.");
+    } catch (error) {
+      toast.error(firebaseAuthErrorMessage(error));
     } finally {
       setSubmitting(false);
     }
